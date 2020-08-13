@@ -1,3 +1,6 @@
 [submodule "llvm"]
 	path = llvm
 	url = git@github.com:llvm/llvm-project
+[submodule "pluto"]
+	path = pluto
+	url = git@github.com:kumasento/pluto
