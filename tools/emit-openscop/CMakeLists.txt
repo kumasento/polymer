@@ -9,10 +9,20 @@ llvm_update_compile_flags(emit-openscop)
 target_link_libraries(emit-openscop
   PRIVATE
   MLIRTranslation
-  MLIRIR
   MLIRStandardOps
   MLIRAffineOps
+  MLIRAffineUtils
+  MLIRLoopAnalysis
+  MLIRAnalysis
+  MLIRDialect
+  MLIREDSC
+  MLIROptLib
+  MLIRParser
+  MLIRPass
+  MLIRTransforms
+  MLIRTransformUtils
   MLIRSupport
+  MLIRIR
 
   POLYMEREmitOpenSCoP
   )
