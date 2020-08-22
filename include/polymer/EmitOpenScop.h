@@ -6,14 +6,14 @@
 namespace mlir {
 struct LogicalResult;
 class ModuleOp;
-}  // namespace mlir
+} // namespace mlir
 
 namespace polymer {
 
-mlir::LogicalResult emitOpenSCoP(mlir::ModuleOp module, llvm::raw_ostream &os);
+mlir::LogicalResult emitOpenScop(mlir::ModuleOp module, llvm::raw_ostream &os);
 
-void registerOpenSCoPEmitterTranslation();
+void registerOpenScopEmitterTranslation();
 
-}  // namespace polymer
+} // namespace polymer
 
 #endif

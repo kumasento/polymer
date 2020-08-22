@@ -1,0 +1,121 @@
+#include "polymer/OslScop.h"
+
+#include "osl/osl.h"
+
+#include "llvm/Support/raw_ostream.h"
+
+#include <vector>
+
+using namespace polymer;
+
+namespace {
+
+/// Create osl_vector from a STL vector. Since the input vector is of type
+/// int64_t, we can safely assume the osl_vector we will generate has double
+/// precision. The input vector doesn't contain the e/i indicator.
+void getOslVector(bool isEq, std::vector<int64_t> &vec, osl_vector_p *oslVec) {
+  *oslVec = osl_vector_pmalloc(64, vec.size() + 1);
+
+  // Set the e/i field.
+  osl_int_t val;
+  val.dp = isEq ? 0 : 1;
+  (*oslVec)->v[0] = val;
+
+  // Set the rest of the vector.
+  for (int i = 0, e = vec.size(); i < e; i++) {
+    osl_int_t val;
+    val.dp = vec[i];
+    (*oslVec)->v[i + 1] = val;
+  }
+}
+
+/// Get the statement given by its index.
+osl_statement_p getOslStatement(osl_scop_p scop, unsigned index) {
+  osl_statement_p stmt = scop->statement;
+  for (unsigned i = 0; i <= index; i++) {
+    // stmt accessed in the linked list before counting to index should not be
+    // NULL.
+    assert(stmt && "index exceeds the range of statements in scop.");
+    if (i == index)
+      return stmt;
+    stmt = stmt->next;
+  }
+}
+
+} // namespace
+
+OslScop::OslScop() { scop = osl_scop_malloc(); }
+
+OslScop::~OslScop() { osl_scop_free(scop); }
+
+void OslScop::print() { osl_scop_print(stdout, scop); }
+
+bool OslScop::validate() {
+  // TODO: do we need to check the scoplib compatibility?
+  return osl_scop_integrity_check(scop);
+}
+
+void OslScop::createStatement() {
+  osl_statement_p stmt = osl_statement_malloc();
+  osl_statement_add(&(scop->statement), stmt);
+}
+
+void OslScop::addRelation(int target, int type, int numRows, int numCols,
+                          int numOutputDims, int numInputDims, int numLocalDims,
+                          int numParams, std::vector<std::vector<int64_t>> &eqs,
+                          std::vector<std::vector<int64_t>> &inEqs) {
+  assert(eqs.size() + inEqs.size() == numRows &&
+         "Number of constraints should match the number of rows.");
+
+  // Here we preset the precision to 64.
+  osl_relation_p rel = osl_relation_pmalloc(64, numRows, numCols);
+  rel->type = type;
+  rel->nb_output_dims = numOutputDims;
+  rel->nb_input_dims = numInputDims;
+  rel->nb_local_dims = numLocalDims;
+  rel->nb_parameters = numParams;
+
+  size_t numEqs = eqs.size();
+
+  // Replace those allocated vector elements in rel.
+  for (int i = 0; i < numRows; i++) {
+    osl_vector_p vec;
+    if (i >= numEqs)
+      getOslVector(false, inEqs[i - numEqs], &vec);
+    else {
+      getOslVector(true, eqs[i], &vec);
+    }
+
+    // Replace the vector content of the i-th row by the contents in
+    // constraints.
+    osl_relation_replace_vector(rel, vec, i);
+  }
+
+  // Append the newly created relation to a target linked list, or simply set it
+  // to a relation pointer, which is indicated by the target argument.
+  if (target == 0) {
+    // Simply assign the newly created relation to the context field.
+    scop->context = rel;
+  } else {
+    // Get the pointer to the statement.
+    osl_statement_p stmt = getOslStatement(scop, target - 1);
+
+    // Depending on the type of the relation, we decide which field of the
+    // statement we should set.
+    if (type == OSL_TYPE_DOMAIN) {
+      stmt->domain = rel;
+    } else if (type == OSL_TYPE_SCATTERING) {
+      stmt->scattering = rel;
+    } else if (type == OSL_TYPE_ACCESS || type == OSL_TYPE_WRITE ||
+               type == OSL_TYPE_READ) {
+      // Initialize a relation list for access if there isn't one.
+      if (!stmt->access)
+        stmt->access = osl_relation_list_malloc();
+
+      // Append a new list node.
+      osl_relation_list_p relList = osl_relation_list_malloc();
+      relList->elt = rel;
+      osl_relation_list_add(&(stmt->access), relList);
+    }
+  }
+}

@@ -35,6 +35,16 @@ if (MSVC_IDE OR XCODE)
 endif()
 set(LLVM_LIT_ARGS "${LIT_ARGS_DEFAULT}" CACHE STRING "Default options for lit")
 
+# ------------------------------------------------- Dependencies
+# OpenScop
+# We should prevent the main CMakeLists.txt file in openscop to change the 
+# BUILD_SHARED_LIBS flag. 
+set(BUILD_SHARED_LIBS FALSE)
+# This should add a new library osl.
+add_subdirectory(openscop)
+include_directories(${CMAKE_SOURCE_DIR}/openscop/include)
+include_directories(${CMAKE_BINARY_DIR}/openscop/include)
+
 # ------------------------------------------------- This project
 set(POLYMER_MAIN_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include ) # --src-root
 set(POLYMER_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/include ) # --includedir

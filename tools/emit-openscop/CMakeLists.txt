@@ -8,10 +8,7 @@ add_llvm_tool(emit-openscop
 llvm_update_compile_flags(emit-openscop)
 target_link_libraries(emit-openscop
   PRIVATE
-  MLIRTranslation
   MLIRStandardOps
-  MLIRAffineOps
-  MLIRAffineUtils
   MLIRLoopAnalysis
   MLIRAnalysis
   MLIRDialect
@@ -24,5 +21,5 @@ target_link_libraries(emit-openscop
   MLIRSupport
   MLIRIR
 
-  POLYMEREmitOpenSCoP
+  POLYMEREmitOpenScop
   )

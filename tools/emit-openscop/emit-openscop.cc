@@ -1,4 +1,4 @@
-#include "polymer/EmitOpenSCoP.h"
+#include "polymer/EmitOpenScop.h"
 
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
   registerDialect<StandardOpsDialect>();
   registerDialect<AffineDialect>();
 
-  registerOpenSCoPEmitterTranslation();
+  registerOpenScopEmitterTranslation();
 
   llvm::InitLLVM y(argc, argv);
 
@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
                            llvm::cl::Required);
 
   llvm::cl::ParseCommandLineOptions(argc, argv,
-                                    "OpenSCoP emitter from MLIR dialects\n");
+                                    "OpenScop emitter from MLIR dialects\n");
 
   std::string errorMessage;
   auto input = openInputFile(inputFilename, &errorMessage);

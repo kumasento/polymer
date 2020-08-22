@@ -1,0 +1,426 @@
+#include "polymer/EmitOpenScop.h"
+#include "polymer/OslScop.h"
+
+#include "mlir/Analysis/AffineAnalysis.h"
+#include "mlir/Analysis/AffineStructures.h"
+#include "mlir/Analysis/LoopAnalysis.h"
+#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Affine/IR/AffineValueMap.h"
+#include "mlir/Dialect/Affine/Passes.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/Function.h"
+#include "mlir/IR/Module.h"
+#include "mlir/IR/StandardTypes.h"
+#include "mlir/Transforms/LoopUtils.h"
+#include "mlir/Transforms/Utils.h"
+#include "mlir/Translation.h"
+
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/StringSet.h"
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/Format.h"
+#include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/raw_ostream.h"
+
+#include "osl/osl.h"
+
+#include <memory>
+
+using namespace mlir;
+using namespace llvm;
+using namespace polymer;
+
+#define DEBUG_TYPE "emit-openscop"
+
+namespace {
+
+/// Get a clone of the elements in the equalities of FlatAffineConstraints.
+void getEqualities(FlatAffineConstraints &cst,
+                   std::vector<std::vector<int64_t>> &eqs) {
+  for (unsigned i = 0, e = cst.getNumEqualities(); i < e; i++)
+    eqs.push_back(cst.getEquality(i));
+}
+
+/// Get a clone of the elements in the inequalities of FlatAffineConstraints.
+void getInequalities(FlatAffineConstraints &cst,
+                     std::vector<std::vector<int64_t>> &inEqs) {
+  for (unsigned i = 0, e = cst.getNumInequalities(); i < e; i++)
+    inEqs.push_back(cst.getInequality(i));
+}
+
+/// Gather information from the domain FlatAffineConstraints and put them into
+/// the scop as a DOMAIN relation. index gives the statement id.
+void addDomainToScop(unsigned index, FlatAffineConstraints &domain,
+                     OslScop &scop) {
+  // First we clone the equalities and inequalities from the domain constraints.
+  std::vector<std::vector<int64_t>> eqs, inEqs;
+  getEqualities(domain, eqs);
+  getInequalities(domain, inEqs);
+
+  // Then put them into the scop as a DOMAIN relation.
+  scop.addRelation(index + 1, OSL_TYPE_DOMAIN, domain.getNumConstraints(),
+                   domain.getNumCols() + 1, domain.getNumDimIds(), 0,
+                   domain.getNumLocalIds(), domain.getNumSymbolIds(), eqs,
+                   inEqs);
+}
+
+} // namespace
+
+namespace {
+/// Tree that holds scattering information. This node can represent an induction
+/// variable or a statement. A statement is constructed as a leaf node.
+class ScatteringTreeNode {
+public:
+  ScatteringTreeNode(bool isLeaf = false) : isLeaf(isLeaf) {}
+  ScatteringTreeNode(mlir::Value iv) : iv(iv), isLeaf(false) {}
+
+  /// Children of the current node.
+  std::vector<std::unique_ptr<ScatteringTreeNode>> children;
+
+  /// Mapping from IV to child ID.
+  llvm::DenseMap<mlir::Value, unsigned> valueIdMap;
+
+  /// Induction variable.
+  mlir::Value iv;
+
+  /// If this node is a statement, then isLeaf is true.
+  bool isLeaf;
+};
+
+/// Insert a statement characterized by its enclosing operations into a
+/// "scattering tree". This is done by iterating through every enclosing for-op
+/// from the outermost to the innermost, and we try to traverse the tree by the
+/// IVs of these ops. If an IV does not exist, we will insert it into the tree.
+/// After that, we insert the current load/store statement into the tree as a
+/// leaf. In this progress, we keep track of all the IDs of each child we meet
+/// and the final leaf node, which will be used as the scattering.
+void insertStatement(ScatteringTreeNode *root,
+                     SmallVectorImpl<Operation *> &enclosingOps,
+                     SmallVectorImpl<unsigned> &scattering) {
+  ScatteringTreeNode *curr = root;
+
+  for (unsigned i = 0, e = enclosingOps.size(); i < e; i++) {
+    Operation *op = enclosingOps[i];
+    // We only handle for op here.
+    // TODO: is it necessary to deal with if?
+    if (auto forOp = dyn_cast<AffineForOp>(op)) {
+      SmallVector<mlir::Value, 4> indices;
+      extractForInductionVars(forOp, &indices);
+
+      for (auto iv : indices) {
+        auto it = curr->valueIdMap.find(iv);
+        if (it != curr->valueIdMap.end()) {
+          // Add a new element to the scattering.
+          scattering.push_back(it->second);
+          // move to the next IV along the tree.
+          curr = curr->children[it->second].get();
+        } else {
+          // No existing node for such IV is found, create a new one.
+          auto node = std::make_unique<ScatteringTreeNode>(iv);
+
+          // Then insert the newly created node into the children set, update
+          // the value to child ID map, and move the cursor to this new node.
+          curr->children.push_back(std::move(node));
+          unsigned valueId = curr->children.size() - 1;
+          curr->valueIdMap[iv] = valueId;
+          scattering.push_back(valueId);
+          curr = curr->children.back().get();
+        }
+      }
+    }
+  }
+
+  // Append the leaf node for statement
+  auto leaf = std::make_unique<ScatteringTreeNode>(/*isLeaf=*/true);
+  curr->children.push_back(std::move(leaf));
+  scattering.push_back(curr->children.size() - 1);
+}
+
+void addScatteringToScop(unsigned index, ArrayRef<unsigned> scattering,
+                         FlatAffineConstraints &domain, OslScop &scop) {
+  // Elements (N of them) in `scattering` are constants, and there are IVs
+  // interleaved them. Therefore, we have 2N - 1 number of scattering
+  // equalities.
+  unsigned numScatteringEqualities = scattering.size() * 2 - 1;
+  // Columns include new scattering dimensions and those from the domain.
+  unsigned numScatteringCols =
+      numScatteringEqualities + domain.getNumCols() + 1;
+
+  // Create equalities and inequalities.
+  std::vector<std::vector<int64_t>> eqs, inEqs;
+
+  // Initialize contents for equalities.
+  eqs.resize(numScatteringEqualities);
+  for (unsigned j = 0; j < numScatteringEqualities; j++) {
+    eqs[j].resize(numScatteringCols - 1);
+
+    // Initializing scattering dimensions by setting the diagonal to -1.
+    for (unsigned k = 0; k < numScatteringEqualities; k++)
+      eqs[j][k] = -static_cast<int64_t>(k == j);
+
+    // Relating the loop IVs to the scattering dimensions. If it's the odd
+    // equality, set its scattering dimension to the loop IV; otherwise, it's
+    // scattering dimension will be set in the following constant section.
+    for (unsigned k = 0; k < domain.getNumDimIds(); k++)
+      eqs[j][k + numScatteringEqualities] = (j % 2) ? (k == (j / 2)) : 0;
+
+    // TODO: consider the parameters that may appear in the scattering
+    // dimension.
+    for (unsigned k = 0; k < domain.getNumLocalIds() + domain.getNumSymbolIds();
+         k++)
+      eqs[j][k + numScatteringEqualities + domain.getNumDimIds()] = 0;
+
+    // Relating the constants (the last column) to the scattering dimensions.
+    eqs[j][numScatteringCols - 2] = (j % 2) ? 0 : scattering[j / 2];
+  }
+
+  // Then put them into the scop as a SCATTERING relation.
+  scop.addRelation(index + 1, OSL_TYPE_SCATTERING, numScatteringEqualities,
+                   numScatteringCols, numScatteringEqualities,
+                   domain.getNumDimIds(), domain.getNumLocalIds(),
+                   domain.getNumSymbolIds(), eqs, inEqs);
+}
+} // namespace
+
+namespace {
+
+/// Generate the access relation and add it to the scop.
+void addAccessToScop(unsigned index, unsigned memrefId, bool isRead,
+                     ArrayRef<SmallVector<int64_t, 8>> flatExprs,
+                     FlatAffineConstraints &domain, OslScop &scop) {
+  // Number of equalities equals to the number of enclosing loop indices
+  // plus 1 (the array itself).
+  unsigned numAccessEqualities = domain.getNumDimIds() + 1;
+  unsigned numAccessCols = domain.getNumCols() + numAccessEqualities + 1;
+  unsigned numFlatExprCols = flatExprs[0].size();
+
+  // Create equalities and inequalities.
+  std::vector<std::vector<int64_t>> eqs, inEqs;
+
+  eqs.resize(numAccessEqualities);
+  for (unsigned i = 0; i < numAccessEqualities; i++) {
+    // We leave alone the first column that indicates whether it is an equality
+    // or not.
+    eqs[i].resize(numAccessCols - 1);
+
+    // The first section of a diagonal square matrix that points which axis the
+    // current access relation is working on.
+    for (unsigned j = 0; j < numAccessEqualities; j++)
+      eqs[i][j] = -static_cast<int64_t>(i == j);
+
+    // Set up the relation betwene the memref access position and the loop IVs.
+    if (i == 0) {
+      // The first row sets the array ID to the memref ID.
+      for (unsigned j = 0; j < domain.getNumCols() - 1; j++)
+        eqs[i][j + numAccessEqualities] = 0;
+      eqs[i][numAccessCols - 2] = memrefId;
+    } else {
+      // TODO: consider local variables.
+      // Put the coefficients in the flat exprs into the access relation.
+      for (unsigned j = 0; j < numFlatExprCols; j++) {
+        eqs[i][j + numAccessEqualities] = flatExprs[i - 1][j];
+      }
+    }
+  }
+
+  // Then put them into the scop as a ACCESS relation.
+  scop.addRelation(index + 1, isRead ? OSL_TYPE_READ : OSL_TYPE_WRITE,
+                   numAccessEqualities, numAccessCols, numAccessEqualities,
+                   domain.getNumDimIds(), domain.getNumLocalIds(),
+                   domain.getNumSymbolIds(), eqs, inEqs);
+}
+} // namespace
+
+namespace {
+/// This class maintains the state of a working emitter.
+class OpenScopEmitterState {
+public:
+  explicit OpenScopEmitterState(raw_ostream &os) : os(os) {}
+
+  /// The stream to emit to.
+  raw_ostream &os;
+
+  bool encounteredError = false;
+  unsigned currentIdent = 0; // TODO: may not need this.
+
+private:
+  OpenScopEmitterState(const OpenScopEmitterState &) = delete;
+  void operator=(const OpenScopEmitterState &) = delete;
+};
+
+/// Base class for various OpenScop emitters.
+class OpenScopEmitterBase {
+public:
+  explicit OpenScopEmitterBase(OpenScopEmitterState &state)
+      : state(state), os(state.os) {}
+
+  InFlightDiagnostic emitError(Operation *op, const Twine &message) {
+    state.encounteredError = true;
+    return op->emitError(message);
+  }
+
+  InFlightDiagnostic emitOpError(Operation *op, const Twine &message) {
+    state.encounteredError = true;
+    return op->emitOpError(message);
+  }
+
+  /// All of the mutable state we are maintaining.
+  OpenScopEmitterState &state;
+
+  /// The stream to emit to.
+  raw_ostream &os;
+
+private:
+  OpenScopEmitterBase(const OpenScopEmitterBase &) = delete;
+  void operator=(const OpenScopEmitterBase &) = delete;
+};
+
+/// Emit OpenScop representation from an MLIR module.
+class ModuleEmitter : public OpenScopEmitterBase {
+public:
+  explicit ModuleEmitter(OpenScopEmitterState &state)
+      : OpenScopEmitterBase(state) {}
+
+  /// Emit OpenScop definitions for all functions in the given module.
+  void emitMLIRModule(ModuleOp module);
+
+private:
+  /// Emit a OpenScop definition for a single function.
+  LogicalResult emitFuncOp(FuncOp func);
+};
+
+LogicalResult ModuleEmitter::emitFuncOp(mlir::FuncOp func) {
+  // Initialize ja new Scop per FuncOp.
+  OslScop scop;
+
+  // Set an empty context.
+  std::vector<std::vector<int64_t>> ctxEqs, ctxInEqs;
+  scop.addRelation(0, OSL_TYPE_CONTEXT, 0, 2, 0, 0, 0, 0, ctxEqs, ctxInEqs);
+
+  // We iterate through every operations in the function and extrat load/store
+  // operations out into loadAndStoreOps.
+  SmallVector<Operation *, 8> loadAndStoreOps;
+  func.getOperation()->walk([&](Operation *op) {
+    if (isa<AffineReadOpInterface, AffineWriteOpInterface>(op))
+      loadAndStoreOps.push_back(op);
+  });
+
+  LLVM_DEBUG(llvm::dbgs() << "Found " << Twine(loadAndStoreOps.size())
+                          << " number of load/store operations.\n");
+
+  // Create the root tree node.
+  ScatteringTreeNode root;
+
+  // Maintain the identifiers of memref objects
+  llvm::DenseMap<mlir::Value, unsigned> memrefIdMap;
+
+  for (unsigned i = 0, e = loadAndStoreOps.size(); i < e; i++) {
+    // Initialize a new statement in the scop. Maybe it is better to initialize
+    // all statements at once?
+    scop.createStatement();
+
+    Operation *op = loadAndStoreOps[i];
+    LLVM_DEBUG(op->dump());
+
+    // Each statement in the MLIR affine case is a load/store, which means
+    // besides the domain and scattering relations, there will be only one
+    // additional access relation. In together there will be 3 of them.
+
+    // TODO: make getOpIndexSet publicly available
+    SmallVector<Operation *, 4> ops;
+    getEnclosingAffineForAndIfOps(*op, &ops);
+
+    // Get the domain first, which is structured as FlatAffineConstraints.
+    FlatAffineConstraints domain;
+    if (failed(getIndexSet(ops, &domain)))
+      return failure();
+    LLVM_DEBUG(domain.dump());
+
+    // Add the domain relation to the scop object.
+    addDomainToScop(i, domain, scop);
+
+    // Get the scattering. By using insertStatement, we create new nodes in the
+    // scattering tree representation rooted at `root`, and get the result
+    // scattering relation in the `scattering` vector.
+    // TODO: consider strided loop indices.
+    SmallVector<unsigned, 8> scattering;
+    insertStatement(&root, ops, scattering);
+
+    addScatteringToScop(i, scattering, domain, scop);
+
+    // TODO: can we wrap these calculation into a bigger data structure like
+    // FlatAffineConstraints?
+    // Elements (N of them) in `scattering` are constants, and there are IVs
+    // interleaved them. Therefore, we have 2N - 1 number of scattering
+    // equalities.
+    unsigned numScatteringEqualities = scattering.size() * 2 - 1;
+    // Columns include new scattering dimensions and those from the domain.
+    unsigned numScatteringCols =
+        numScatteringEqualities + domain.getNumCols() + 1;
+
+    // Get the access
+    MemRefAccess access(op);
+    auto it = memrefIdMap.find(access.memref);
+    if (it == memrefIdMap.end())
+      memrefIdMap[access.memref] = memrefIdMap.size() + 1;
+    auto memrefId = memrefIdMap[access.memref];
+
+    AffineValueMap accessMap;
+    access.getAccessMap(&accessMap);
+    std::vector<SmallVector<int64_t, 8>> flatExprs;
+    FlatAffineConstraints localVarCst;
+
+    if (failed(getFlattenedAffineExprs(accessMap.getAffineMap(), &flatExprs,
+                                       &localVarCst)))
+      return failure();
+
+    assert(flatExprs.size() > 0 &&
+           "Number of flat expressions should be larger than 0.");
+
+    LLVM_DEBUG(llvm::dbgs()
+               << "Number of flat exprs: " << flatExprs.size() << "\n");
+    LLVM_DEBUG(llvm::dbgs()
+               << "Flat expr size: " << flatExprs[0].size() << "\n");
+
+    // Insert the access relation into the scop.
+    addAccessToScop(i, memrefId, !access.isStore(), flatExprs, domain, scop);
+  }
+
+  assert(scop.validate() && "Scop created cannot be validated.");
+
+  // Print the OpenScop representation to the ostream.
+  // TODO: relate STDOUT with the os stream in the emitter.
+  scop.print();
+
+  return success();
+}
+
+/// The entry function to the current OpenScop emitter.
+void ModuleEmitter::emitMLIRModule(ModuleOp module) {
+  // Emit a single OpenScop definition for each function.
+  for (auto &op : *module.getBody()) {
+    if (auto func = dyn_cast<mlir::FuncOp>(op)) {
+      if (failed(emitFuncOp(func))) {
+        state.encounteredError = true;
+        return;
+      }
+    }
+  }
+}
+
+} // namespace
+
+LogicalResult polymer::emitOpenScop(ModuleOp module, llvm::raw_ostream &os) {
+  OpenScopEmitterState state(os);
+  ModuleEmitter(state).emitMLIRModule(module);
+
+  return failure(state.encounteredError);
+}
+
+void polymer::registerOpenScopEmitterTranslation() {
+  static TranslateFromMLIRRegistration toOpenScop("emit-openscop",
+                                                  polymer::emitOpenScop);
+}
