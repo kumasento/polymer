@@ -23,7 +23,7 @@ func @load_store_param(%A: memref<?xf32>) -> () {
 // CHECK: CONTEXT
 // CHECK: 1 3 0 0 0 1
 // CHECK: # e/i| P1 |  1  
-// CHECK:    1    1    0    ## P1 >= 0
+// CHECK:    1    1   -1    ## P1-1 >= 0
 // CHECK: # Parameters are not provided
 // CHECK: 0
 // CHECK: # Number of statements
@@ -79,4 +79,3 @@ func @load_store_param(%A: memref<?xf32>) -> () {
 // CHECK: # Number of Statement Extensions
 // CHECK: 0
 // CHECK: </OpenScop>
-

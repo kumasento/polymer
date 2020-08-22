@@ -41,13 +41,13 @@ namespace {
 /// paramMap when generating scop. lb and ub will be used to get the context
 /// relation.
 struct DomainParameter {
-  unsigned index;                 // Parameter ID.
+  unsigned pos; // Parameter column position in the constraints.
   llvm::Optional<int64_t> lb, ub; // Lower and upper bounds.
 
-  DomainParameter() : index(0), lb(llvm::None), ub(llvm::None) {}
-  DomainParameter(unsigned index, llvm::Optional<int64_t> lb,
+  DomainParameter() : pos(0), lb(llvm::None), ub(llvm::None) {}
+  DomainParameter(unsigned pos, llvm::Optional<int64_t> lb,
                   llvm::Optional<int64_t> ub)
-      : index(index), lb(lb), ub(ub) {}
+      : pos(pos), lb(lb), ub(ub) {}
 };
 
 /// Add parameters to the maintained parameter-ID map.
@@ -68,9 +68,25 @@ void addParamsToMap(FlatAffineConstraints &domain,
 
     auto it = paramMap.find(value);
     if (it == paramMap.end()) {
-      paramMap[value] = DomainParameter(paramMap.size() + 1, lb, ub);
+      paramMap[value] = DomainParameter(paramMap.size(), lb, ub);
     }
   }
+}
+
+/// Build the mapping from position to parameters.
+void buildPosToParamMap(llvm::DenseMap<mlir::Value, DomainParameter> &paramMap,
+                        SmallVectorImpl<mlir::Value> &posToParam) {
+  unsigned numParam = paramMap.size();
+  posToParam.reserve(numParam);
+
+  for (auto const &it : paramMap)
+    posToParam.push_back(it.first);
+
+  // TODO: Is there a more efficient way?
+  llvm::sort(posToParam.begin(), posToParam.end(),
+             [&](const mlir::Value &L, const mlir::Value &R) {
+               return paramMap[L].pos < paramMap[R].pos;
+             });
 }
 
 /// Create a context relation from parameters and add it to the scop.
@@ -112,6 +128,54 @@ void addContextToScop(llvm::DenseMap<mlir::Value, DomainParameter> &paramMap,
   unsigned numRows = ctxInEqs.size();
   scop.addRelation(0, OSL_TYPE_CONTEXT, numRows, numCols, 0, 0, 0, numParams,
                    ctxEqs, ctxInEqs);
+}
+
+/// Swap the posA^th identifier with the posB^th identifier.
+/// TODO: This is from AffineStructure.h, should be turned into a publicly
+/// available API.
+void swapId(FlatAffineConstraints *A, unsigned posA, unsigned posB) {
+  assert(posA < A->getNumIds() && "invalid position A");
+  assert(posB < A->getNumIds() && "invalid position B");
+
+  if (posA == posB)
+    return;
+
+  for (unsigned r = 0, e = A->getNumInequalities(); r < e; r++) {
+    std::swap(A->atIneq(r, posA), A->atIneq(r, posB));
+  }
+  for (unsigned r = 0, e = A->getNumEqualities(); r < e; r++) {
+    std::swap(A->atEq(r, posA), A->atEq(r, posB));
+  }
+  std::swap(A->getId(posA), A->getId(posB));
+}
+
+/// Update the parameter (symbol) section of the domain constraints. We need to
+/// make sure that all domains share the same set of parameters and they are
+/// located at the same positions.
+void updateDomainParams(
+    FlatAffineConstraints &domain, SmallVectorImpl<mlir::Value> &posToParam,
+    llvm::DenseMap<mlir::Value, DomainParameter> &paramMap) {
+  unsigned offset = domain.getNumDimIds();
+  unsigned numParams = paramMap.size();
+
+  for (unsigned pos = 0; pos < numParams; pos++) {
+    mlir::Value param = posToParam[pos];
+
+    unsigned posInDomain;
+    if (domain.findId(param, &posInDomain)) {
+      // If there is such param in the domain, we should check whether its
+      // position is right.
+      if (posInDomain != offset + pos) {
+        // posInDomain should be larger than pos. It is because all parameters
+        // located before pos should already be placed correctly.
+        assert(posInDomain > pos &&
+               "posInDomain should be larger than pos if not equal.");
+        swapId(&domain, offset + pos, posInDomain);
+      }
+    } else {
+      domain.addSymbolId(pos, /*id=*/param);
+    }
+  }
 }
 
 } // namespace
@@ -388,19 +452,26 @@ LogicalResult ModuleEmitter::emitFuncOp(mlir::FuncOp func) {
   LLVM_DEBUG(llvm::dbgs() << "Found " << Twine(loadAndStoreOps.size())
                           << " number of load/store operations.\n");
 
+  // Total number of statements.
+  unsigned numStatements = loadAndStoreOps.size();
+
+  // Cache all the enclosing operations for all statements.
+  std::vector<SmallVector<Operation *, 4>> enclosingOpsList(numStatements);
+  // Store the domain constraints for all statements. We need to pre-calculate
+  // them, such that we can derive the full set of parameters.
+  std::vector<FlatAffineConstraints> domains(numStatements);
+
   // Create the root tree node.
   ScatteringTreeNode root;
-
   // Maintain the identifiers of memref objects
   llvm::DenseMap<mlir::Value, unsigned> memrefIdMap;
   // Maintain the mapping from the parameter Value and its numbering.
   llvm::DenseMap<mlir::Value, DomainParameter> paramMap;
+  // Mapping the position of parameter to the parameter itself.
+  SmallVector<mlir::Value, 8> posToParam;
 
-  for (unsigned i = 0, e = loadAndStoreOps.size(); i < e; i++) {
-    // Initialize a new statement in the scop. Maybe it is better to initialize
-    // all statements at once?
-    scop.createStatement();
-
+  // Pre-calculate domains.
+  for (unsigned i = 0; i < numStatements; i++) {
     Operation *op = loadAndStoreOps[i];
     LLVM_DEBUG(op->dump());
 
@@ -409,17 +480,30 @@ LogicalResult ModuleEmitter::emitFuncOp(mlir::FuncOp func) {
     // additional access relation. In together there will be 3 of them.
 
     // TODO: make getOpIndexSet publicly available
-    SmallVector<Operation *, 4> ops;
-    getEnclosingAffineForAndIfOps(*op, &ops);
+    getEnclosingAffineForAndIfOps(*op, &enclosingOpsList[i]);
 
     // Get the domain first, which is structured as FlatAffineConstraints.
-    FlatAffineConstraints domain;
-    if (failed(getIndexSet(ops, &domain)))
+    if (failed(getIndexSet(enclosingOpsList[i], &domains[i])))
       return failure();
-    LLVM_DEBUG(domain.dump());
 
     // Update the paramMap.
-    addParamsToMap(domain, paramMap);
+    addParamsToMap(domains[i], paramMap);
+  }
+
+  // Build the mapping from position to a specific parameter.
+  buildPosToParamMap(paramMap, posToParam);
+
+  for (unsigned i = 0; i < numStatements; i++) {
+    Operation *op = loadAndStoreOps[i];
+    FlatAffineConstraints domain = domains[i];
+    auto ops = enclosingOpsList[i];
+
+    // Update the parameters mapping for domain.
+    updateDomainParams(domain, posToParam, paramMap);
+
+    // Initialize a new statement in the scop. Maybe it is better to initialize
+    // all statements at once?
+    scop.createStatement();
 
     // Add the domain relation to the scop object.
     addDomainToScop(i, domain, scop);
