@@ -13,7 +13,7 @@ func @load_store() -> () {
 // CHECK: <OpenScop>
 // CHECK: # =============================================== Global
 // CHECK: # Language
-// CHECK: (null)
+// CHECK: C
 // CHECK: # Context
 // CHECK: CONTEXT
 // CHECK: 0 2 0 0 0 0

@@ -44,7 +44,16 @@ osl_statement_p getOslStatement(osl_scop_p scop, unsigned index) {
 
 } // namespace
 
-OslScop::OslScop() { scop = osl_scop_malloc(); }
+OslScop::OslScop() {
+  scop = osl_scop_malloc();
+
+  // Initialize string buffer for language.
+  char *language;
+  OSL_malloc(language, char *, 2);
+  OSL_strdup(language, "C");
+
+  scop->language = language;
+}
 
 OslScop::~OslScop() { osl_scop_free(scop); }
 
