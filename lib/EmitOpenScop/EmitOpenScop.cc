@@ -481,10 +481,14 @@ LogicalResult ModuleEmitter::emitFuncOp(mlir::FuncOp func) {
 
     // TODO: make getOpIndexSet publicly available
     getEnclosingAffineForAndIfOps(*op, &enclosingOpsList[i]);
+    LLVM_DEBUG(llvm::dbgs() << "Number of enclosing operations: "
+                            << enclosingOpsList[i].size() << "\n");
 
     // Get the domain first, which is structured as FlatAffineConstraints.
     if (failed(getIndexSet(enclosingOpsList[i], &domains[i])))
       return failure();
+
+    LLVM_DEBUG(domains[i].dump());
 
     // Update the paramMap.
     addParamsToMap(domains[i], paramMap);
