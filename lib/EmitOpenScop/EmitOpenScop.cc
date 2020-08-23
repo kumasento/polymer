@@ -182,18 +182,33 @@ void updateDomainParams(
 
 namespace {
 
-/// Get a clone of the elements in the equalities of FlatAffineConstraints.
+/// Get a clone of the elements in the equalities or inequalities of
+/// FlatAffineConstraints.
 void getEqualities(FlatAffineConstraints &cst,
-                   std::vector<std::vector<int64_t>> &eqs) {
-  for (unsigned i = 0, e = cst.getNumEqualities(); i < e; i++)
-    eqs.push_back(cst.getEquality(i));
-}
+                   std::vector<std::vector<int64_t>> &eqs, bool isEq = true) {
+  unsigned numEqualities =
+      isEq ? cst.getNumEqualities() : cst.getNumInequalities();
+  unsigned numDimIds = cst.getNumDimIds();
+  unsigned numLocalIds = cst.getNumLocalIds();
+  unsigned numSymbolIds = cst.getNumSymbolIds();
 
-/// Get a clone of the elements in the inequalities of FlatAffineConstraints.
-void getInequalities(FlatAffineConstraints &cst,
-                     std::vector<std::vector<int64_t>> &inEqs) {
-  for (unsigned i = 0, e = cst.getNumInequalities(); i < e; i++)
-    inEqs.push_back(cst.getInequality(i));
+  eqs.resize(numEqualities);
+  for (unsigned i = 0; i < numEqualities; i++) {
+    auto eq = isEq ? cst.getEquality(i) : cst.getInequality(i);
+    unsigned numCols = eq.size();
+    eqs[i].resize(numCols);
+
+    // Dims stay at the same positions.
+    for (unsigned j = 0; j < numDimIds; j++)
+      eqs[i][j] = eq[j];
+    // Output local ids before symbols.
+    for (unsigned j = 0; j < numLocalIds; j++)
+      eqs[i][j + numDimIds] = eq[j + numDimIds + numSymbolIds];
+    // Output symbols in the end.
+    for (unsigned j = 0; j < numSymbolIds; j++)
+      eqs[i][j + numDimIds + numLocalIds] = eq[j + numDimIds];
+    eqs[i][numCols - 1] = eq[numCols - 1];
+  }
 }
 
 /// Gather information from the domain FlatAffineConstraints and put them into
@@ -203,7 +218,7 @@ void addDomainToScop(unsigned index, FlatAffineConstraints &domain,
   // First we clone the equalities and inequalities from the domain constraints.
   std::vector<std::vector<int64_t>> eqs, inEqs;
   getEqualities(domain, eqs);
-  getInequalities(domain, inEqs);
+  getEqualities(domain, inEqs, /*isEq=*/false);
 
   // Then put them into the scop as a DOMAIN relation.
   scop.addRelation(index + 1, OSL_TYPE_DOMAIN, domain.getNumConstraints(),
@@ -340,7 +355,9 @@ void addAccessToScop(unsigned index, unsigned memrefId, bool isRead,
   // plus 1 (the array itself).
   unsigned numAccessEqualities = domain.getNumDimIds() + 1;
   unsigned numAccessCols = domain.getNumCols() + numAccessEqualities + 1;
-  unsigned numFlatExprCols = flatExprs[0].size();
+  unsigned numDimIds = domain.getNumDimIds();
+  unsigned numSymbolIds = domain.getNumSymbolIds();
+  unsigned numLocalIds = domain.getNumLocalIds();
 
   // Create equalities and inequalities.
   std::vector<std::vector<int64_t>> eqs, inEqs;
@@ -363,10 +380,34 @@ void addAccessToScop(unsigned index, unsigned memrefId, bool isRead,
         eqs[i][j + numAccessEqualities] = 0;
       eqs[i][numAccessCols - 2] = memrefId;
     } else {
-      // TODO: consider local variables.
+      unsigned numFlatExprCols = flatExprs[i - 1].size();
       // Put the coefficients in the flat exprs into the access relation.
-      for (unsigned j = 0; j < numFlatExprCols; j++) {
-        eqs[i][j + numAccessEqualities] = flatExprs[i - 1][j];
+      // Note that numFlatExprCols may be smaller than the number of columns in
+      // the domain constraints, mainly because the flatExprs are not aligned
+      // with the position in domain constraints. Therefore, for those cases
+      // that numFlatExprCols equals to the number of columns in the domain
+      // constraint, we take a special approach to handle the mis-placed local
+      // IDs; otherwise, we just place what in the flatExpr into the access
+      // equalities.
+      // TODO: properly handle local vars in the access equalities.
+      if (numFlatExprCols == numDimIds + numLocalIds + numSymbolIds + 1) {
+        // Input dims.
+        for (unsigned j = 0; j < numDimIds; j++)
+          eqs[i][j + numAccessEqualities] = flatExprs[i - 1][j];
+        // Local dims.
+        for (unsigned j = 0; j < numLocalIds; j++)
+          eqs[i][j + numAccessEqualities + numDimIds] =
+              flatExprs[i - 1][j + numDimIds + numSymbolIds];
+        // Parameters.
+        for (unsigned j = 0; j < numSymbolIds; j++)
+          eqs[i][j + numAccessEqualities + numDimIds + numLocalIds] =
+              flatExprs[i - 1][j + numDimIds];
+        // Constant.
+        eqs[i][numAccessEqualities + numFlatExprCols - 1] =
+            flatExprs[i - 1][numFlatExprCols - 1];
+      } else {
+        for (unsigned j = 0; j < numFlatExprCols; j++)
+          eqs[i][j + numAccessEqualities] = flatExprs[i - 1][j];
       }
     }
   }
