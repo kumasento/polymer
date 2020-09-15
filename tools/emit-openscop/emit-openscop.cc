@@ -1,3 +1,9 @@
+//===- emit-openscop.cc -----------------------------------------*- C++ -*-===//
+//
+// This file implements the command-line tool that emits openscop format from
+// MLIR input files.
+//
+//===----------------------------------------------------------------------===//
 #include "polymer/EmitOpenScop.h"
 
 #include "llvm/Support/InitLLVM.h"
@@ -37,16 +43,17 @@ static llvm::cl::opt<bool> verifyDiagnostics(
     llvm::cl::init(false));
 
 int main(int argc, char *argv[]) {
+  llvm::InitLLVM y(argc, argv);
+  enableGlobalDialectRegistry(true);
+
   // Register MLIR stuff.
   registerAsmPrinterCLOptions();
   registerMLIRContextCLOptions();
 
-  registerDialect<StandardOpsDialect>();
-  registerDialect<AffineDialect>();
+  registerDialect<mlir::StandardOpsDialect>();
+  registerDialect<mlir::AffineDialect>();
 
   registerOpenScopEmitterTranslation();
-
-  llvm::InitLLVM y(argc, argv);
 
   // Add flags for all the registered translations.
   llvm::cl::opt<const TranslateFunction *, false, TranslationParser>

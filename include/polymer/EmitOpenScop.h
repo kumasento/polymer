@@ -1,3 +1,10 @@
+//===- EmitOpenScop.h -------------------------------------------*- C++ -*-===//
+//
+// This file declares the interfaces for emitting OpenScop representation from
+// MLIR modules.
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef POLYMER_EMITOPENSCOP_H
 #define POLYMER_EMITOPENSCOP_H
 

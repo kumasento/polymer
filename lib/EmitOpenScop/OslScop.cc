@@ -1,7 +1,15 @@
+//===- OslScop.cc -----------------------------------------------*- C++ -*-===//
+//
+// This file implements the C++ wrapper for the Scop struct in OpenScop.
+//
+//===----------------------------------------------------------------------===//
+
 #include "polymer/OslScop.h"
 
 #include "osl/osl.h"
 
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <vector>
@@ -11,9 +19,10 @@ using namespace polymer;
 namespace {
 
 /// Create osl_vector from a STL vector. Since the input vector is of type
-/// int64_t, we can safely assume the osl_vector we will generate has double
+/// int64_t, we can safely assume the osl_vector we will generate has 64 bits
 /// precision. The input vector doesn't contain the e/i indicator.
-void getOslVector(bool isEq, std::vector<int64_t> &vec, osl_vector_p *oslVec) {
+void getOslVector(bool isEq, llvm::ArrayRef<int64_t> vec,
+                  osl_vector_p *oslVec) {
   *oslVec = osl_vector_pmalloc(64, vec.size() + 1);
 
   // Set the e/i field.
@@ -71,11 +80,8 @@ void OslScop::createStatement() {
 
 void OslScop::addRelation(int target, int type, int numRows, int numCols,
                           int numOutputDims, int numInputDims, int numLocalDims,
-                          int numParams, std::vector<std::vector<int64_t>> &eqs,
-                          std::vector<std::vector<int64_t>> &inEqs) {
-  assert(eqs.size() + inEqs.size() == numRows &&
-         "Number of constraints should match the number of rows.");
-
+                          int numParams, llvm::ArrayRef<int64_t> eqs,
+                          llvm::ArrayRef<int64_t> inEqs) {
   // Here we preset the precision to 64.
   osl_relation_p rel = osl_relation_pmalloc(64, numRows, numCols);
   rel->type = type;
@@ -84,15 +90,27 @@ void OslScop::addRelation(int target, int type, int numRows, int numCols,
   rel->nb_local_dims = numLocalDims;
   rel->nb_parameters = numParams;
 
-  size_t numEqs = eqs.size();
+  // The number of columns in the given equalities and inequalities, which is
+  // one less than the number of columns in the OSL representation (missing e/i
+  // indicator).
+  size_t numColsInEqs = numCols - 1;
+
+  assert(eqs.size() % numColsInEqs == 0 &&
+         "Number of elements in the eqs should be an integer multiply if "
+         "numColsInEqs\n");
+  size_t numEqs = eqs.size() / numColsInEqs;
 
   // Replace those allocated vector elements in rel.
   for (int i = 0; i < numRows; i++) {
     osl_vector_p vec;
-    if (i >= numEqs)
-      getOslVector(false, inEqs[i - numEqs], &vec);
-    else {
-      getOslVector(true, eqs[i], &vec);
+
+    if (i >= numEqs) {
+      auto inEq = llvm::ArrayRef<int64_t>(&inEqs[(i - numEqs) * numColsInEqs],
+                                          numColsInEqs);
+      getOslVector(false, inEq, &vec);
+    } else {
+      auto eq = llvm::ArrayRef<int64_t>(&eqs[i * numColsInEqs], numColsInEqs);
+      getOslVector(true, eq, &vec);
     }
 
     // Replace the vector content of the i-th row by the contents in

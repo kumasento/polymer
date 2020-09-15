@@ -1,5 +1,12 @@
+//===- OslScop.h ------------------------------------------------*- C++ -*-===//
+//
+// This file declares the C++ wrapper for the Scop struct in OpenScop.
+//
+//===----------------------------------------------------------------------===//
 #ifndef POLYMER_OSLSCOP_H
 #define POLYMER_OSLSCOP_H
+
+#include "mlir/Support/LLVM.h"
 
 #include <cassert>
 #include <cstdint>
@@ -32,11 +39,11 @@ public:
   /// id=(target-1).
   void addRelation(int target, int type, int numRows, int numCols,
                    int numOutputDims, int numInputDims, int numLocalDims,
-                   int numParams, std::vector<std::vector<int64_t>> &eqs,
-                   std::vector<std::vector<int64_t>> &inEqs);
+                   int numParams, llvm::ArrayRef<int64_t> eqs,
+                   llvm::ArrayRef<int64_t> inEqs);
 
 private:
-  struct osl_scop *scop;
+  osl_scop *scop;
 };
 
 } // namespace polymer
