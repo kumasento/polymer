@@ -145,23 +145,6 @@ addContextToScop(llvm::DenseMap<mlir::Value, DomainParameter> &paramMap,
                    ctxEqs, ctxInEqs);
 }
 
-/// Swap the posA^th identifier with the posB^th identifier.
-/// TODO: This is from AffineStructure.h, should be turned into a publicly
-/// available API.
-static void swapId(FlatAffineConstraints *A, unsigned posA, unsigned posB) {
-  assert(posA < A->getNumIds() && "invalid position A");
-  assert(posB < A->getNumIds() && "invalid position B");
-
-  if (posA == posB)
-    return;
-
-  for (unsigned r = 0, e = A->getNumInequalities(); r < e; r++)
-    std::swap(A->atIneq(r, posA), A->atIneq(r, posB));
-  for (unsigned r = 0, e = A->getNumEqualities(); r < e; r++)
-    std::swap(A->atEq(r, posA), A->atEq(r, posB));
-  std::swap(A->getId(posA), A->getId(posB));
-}
-
 /// Update the parameter (symbol) section of the domain constraints. We need to
 /// make sure that all domains share the same set of parameters and they are
 /// located at the same positions.
@@ -184,7 +167,7 @@ updateDomainParams(FlatAffineConstraints &domain,
         // located before pos should already be placed correctly.
         assert(posInDomain > pos &&
                "posInDomain should be larger than pos if not equal.");
-        swapId(&domain, offset + pos, posInDomain);
+        domain.swapId(offset + pos, posInDomain);
       }
     } else {
       domain.addSymbolId(pos, /*id=*/param);
