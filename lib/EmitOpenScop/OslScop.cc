@@ -62,6 +62,10 @@ OslScop::OslScop() {
   OSL_strdup(language, "C");
 
   scop->language = language;
+
+  // Use the default interface registry
+  osl_interface_p registry = osl_interface_get_default_registry();
+  scop->registry = osl_interface_clone(registry);
 }
 
 OslScop::~OslScop() { osl_scop_free(scop); }
@@ -144,5 +148,30 @@ void OslScop::addRelation(int target, int type, int numRows, int numCols,
       relList->elt = rel;
       osl_relation_list_add(&(stmt->access), relList);
     }
+  }
+}
+
+void OslScop::addGeneric(int target, llvm::StringRef tag,
+                         llvm::StringRef content) {
+
+  osl_generic_p generic = osl_generic_malloc();
+
+  // Add interface.
+  osl_interface_p interface = osl_interface_lookup(scop->registry, tag.data());
+  generic->interface = osl_interface_nclone(interface, 1);
+
+  // Add content
+  char *buf;
+  OSL_malloc(buf, char *, content.size() * sizeof(char));
+  OSL_strdup(buf, content.data());
+  generic->data = interface->sread(&buf);
+
+  if (target == 0) {
+    // Add to Scop.
+    osl_generic_add(&(scop->extension), generic);
+  } else {
+    // Add to statement.
+    osl_statement_p stmt = getOslStatement(scop, target - 1);
+    osl_generic_add(&(stmt->extension), generic);
   }
 }

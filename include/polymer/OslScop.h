@@ -42,6 +42,10 @@ public:
                    int numParams, llvm::ArrayRef<int64_t> eqs,
                    llvm::ArrayRef<int64_t> inEqs);
 
+  /// Add a new generic field to a statement. `target` gives the statement ID.
+  /// `content` specifies the data field in the generic.
+  void addGeneric(int target, llvm::StringRef tag, llvm::StringRef content);
+
 private:
   osl_scop *scop;
 };

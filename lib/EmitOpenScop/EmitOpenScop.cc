@@ -405,6 +405,53 @@ static void addAccessToScop(unsigned index, unsigned memrefId, bool isRead,
                    domain.getNumSymbolIds(), eqs, inEqs);
 }
 
+/// Map between a loop IV (mlir::Value) and its iterator name in Scop.
+typedef llvm::DenseMap<mlir::Value, std::string> LoopIVToName;
+
+/// Add the body extension to each statement. `stmtId` corresponds to the index
+/// of the statement in the scop (starting from 1), and `op` is the memory
+/// access operation. In the content of the body we need to decide the number of
+/// the original iterators and what they are. This can be retrieved from the
+/// access indices of the given op.
+static void addBodyExtensionToScop(int stmtId, Operation *op,
+                                   LoopIVToName &ivNameMap, OslScop &scop) {
+  assert((isa<mlir::AffineReadOpInterface, mlir::AffineWriteOpInterface>(op)) &&
+         "op should be an affine read/write operation,");
+  // The string content of the body extension.
+  std::string body;
+  llvm::raw_string_ostream ss(body);
+
+  // Get loop IVs.
+  MemRefAccess access(op);
+  // Number of iterators.
+  ss << access.indices.size() << " ";
+  // Add iterator names.
+  for (auto iv : access.indices) {
+    // If `iv` doesn't exist in the ivNameMap, we insert a new one using format
+    // "i[number]".
+    ivNameMap.try_emplace(iv, formatv("i{0}", ivNameMap.size()));
+    ss << ivNameMap[iv] << " ";
+  }
+
+  // TODO: specify the statement body.
+  scop.addGeneric(stmtId + 1, "body", body);
+}
+
+typedef llvm::DenseMap<mlir::Value, unsigned> MemRefToId;
+
+/// Add the arrays extension to the whole Scop.
+static void addArraysExtensionToScop(const MemRefToId &memrefIdMap,
+                                     OslScop &scop) {
+  std::string body;
+  llvm::raw_string_ostream ss(body);
+
+  ss << memrefIdMap.size() << " ";
+  for (auto const &it : memrefIdMap)
+    ss << it.second << " " << formatv("A{0}", it.second) << " ";
+
+  scop.addGeneric(0, "arrays", body);
+}
+
 namespace {
 
 /// This class maintains the state of a working emitter.
@@ -472,7 +519,7 @@ LogicalResult ModuleEmitter::emitFuncOp(mlir::FuncOp func) {
   // operations out into loadAndStoreOps.
   SmallVector<Operation *, 8> loadAndStoreOps;
   func.getOperation()->walk([&](Operation *op) {
-    if (isa<AffineReadOpInterface, AffineWriteOpInterface>(op))
+    if (isa<mlir::AffineReadOpInterface, mlir::AffineWriteOpInterface>(op))
       loadAndStoreOps.push_back(op);
   });
 
@@ -491,11 +538,13 @@ LogicalResult ModuleEmitter::emitFuncOp(mlir::FuncOp func) {
   // Create the root tree node.
   ScatteringTreeNode root;
   // Maintain the identifiers of memref objects
-  llvm::DenseMap<mlir::Value, unsigned> memrefIdMap;
+  MemRefToId memrefIdMap;
   // Maintain the mapping from the parameter Value and its numbering.
   llvm::DenseMap<mlir::Value, DomainParameter> paramMap;
   // Mapping the position of parameter to the parameter itself.
   SmallVector<mlir::Value, 8> posToParam;
+  // Mapping between loop IVs and their name in Scop.
+  LoopIVToName ivNameMap;
 
   // Pre-calculate domains.
   for (unsigned i = 0; i < numStatements; i++) {
@@ -524,6 +573,7 @@ LogicalResult ModuleEmitter::emitFuncOp(mlir::FuncOp func) {
   // Build the mapping from position to a specific parameter.
   buildPosToParamMap(paramMap, posToParam);
 
+  // Iterate through every statement.
   for (unsigned i = 0; i < numStatements; i++) {
     Operation *op = loadAndStoreOps[i];
     FlatAffineConstraints domain = domains[i];
@@ -585,10 +635,15 @@ LogicalResult ModuleEmitter::emitFuncOp(mlir::FuncOp func) {
 
     // Insert the access relation into the scop.
     addAccessToScop(i, memrefId, !access.isStore(), flatExprs, domain, scop);
+
+    // Insert the body extension.
+    addBodyExtensionToScop(i, op, ivNameMap, scop);
   }
 
   // Setup the context after iterated all statemenets.
   addContextToScop(paramMap, scop);
+  // Add arrays extension content.
+  addArraysExtensionToScop(memrefIdMap, scop);
 
   assert(scop.validate() && "Scop created cannot be validated.");
 
