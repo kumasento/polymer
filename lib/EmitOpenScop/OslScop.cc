@@ -167,8 +167,11 @@ void OslScop::addGeneric(int target, llvm::StringRef tag,
   generic->data = interface->sread(&buf);
 
   if (target == 0) {
-    // Add to Scop.
+    // Add to Scop extension.
     osl_generic_add(&(scop->extension), generic);
+  } else if (target == -1) {
+    // Add to Scop parameters.
+    osl_generic_add(&(scop->parameters), generic);
   } else {
     // Add to statement.
     osl_statement_p stmt = getOslStatement(scop, target - 1);

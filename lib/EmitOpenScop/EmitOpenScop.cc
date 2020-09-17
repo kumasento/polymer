@@ -405,6 +405,19 @@ static void addAccessToScop(unsigned index, unsigned memrefId, bool isRead,
                    domain.getNumSymbolIds(), eqs, inEqs);
 }
 
+static void addParameterNamesToScop(unsigned numParams, OslScop &scop) {
+  if (numParams == 0)
+    return;
+
+  std::string body;
+  llvm::raw_string_ostream ss(body);
+
+  for (unsigned i = 0; i < numParams; i++)
+    ss << formatv("P{0}", i) << " ";
+
+  scop.addGeneric(-1, "strings", body);
+}
+
 /// Map between a loop IV (mlir::Value) and its iterator name in Scop.
 typedef llvm::DenseMap<mlir::Value, std::string> LoopIVToName;
 
@@ -428,9 +441,14 @@ static void addBodyExtensionToScop(int stmtId, Operation *op,
   // Add iterator names.
   for (auto iv : access.indices) {
     // If `iv` doesn't exist in the ivNameMap, we insert a new one using format
-    // "i[number]".
-    ivNameMap.try_emplace(iv, formatv("i{0}", ivNameMap.size()));
-    ss << ivNameMap[iv] << " ";
+    // "i[number]". Sometimes parameters can exist in access.indices, we should
+    // distinguish them with IV by checking the type. If the type of the iv is
+    // BlockArgument, then it is an actual IV; otherwise it is a constant
+    // parameter.
+    if (iv.dyn_cast<BlockArgument>()) {
+      ivNameMap.try_emplace(iv, formatv("i{0}", ivNameMap.size()));
+      ss << ivNameMap[iv] << " ";
+    }
   }
 
   // TODO: specify the statement body.
@@ -644,6 +662,8 @@ LogicalResult ModuleEmitter::emitFuncOp(mlir::FuncOp func) {
   addContextToScop(paramMap, scop);
   // Add arrays extension content.
   addArraysExtensionToScop(memrefIdMap, scop);
+  // Add parameter names
+  addParameterNamesToScop(paramMap.size(), scop);
 
   assert(scop.validate() && "Scop created cannot be validated.");
 
