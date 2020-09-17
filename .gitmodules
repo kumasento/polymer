@@ -4,3 +4,6 @@
 [submodule "pluto"]
 	path = pluto
 	url = git@github.com:kumasento/pluto
+[submodule "openscop"]
+	path = openscop
+	url = git@github.com:kumasento/openscop.git
