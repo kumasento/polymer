@@ -1,4 +1,4 @@
-// RUN: emit-openscop %s -emit-openscop | FileCheck %s
+// RUN: polymer-translate %s -mlir-to-openscop | FileCheck %s
 
 // Load data from one 1D array to another 2D array.
 // This case is used to test the case that two statements that
@@ -130,8 +130,6 @@ func @load_store_param_2d(%A : memref<?xf32>, %B : memref<?x?xf32>) -> () {
 // CHECK: # Number of arrays
 // CHECK: 2
 // CHECK: # Mapping array-identifiers/array-names
-// CHECK: 1 A1
-// CHECK: 2 A2
 // CHECK: </arrays>
 //
 // CHECK: </OpenScop>

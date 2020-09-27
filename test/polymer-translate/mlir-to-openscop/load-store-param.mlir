@@ -1,4 +1,4 @@
-// RUN: emit-openscop %s -emit-openscop | FileCheck %s
+// RUN: polymer-translate %s -mlir-to-openscop | FileCheck %s
 
 // Simple load-and-store program with access funtions built on parameters.
 

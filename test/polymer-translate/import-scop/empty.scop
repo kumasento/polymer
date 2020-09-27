@@ -1,3 +1,5 @@
+// RUN: polymer-translate %s -import-openscop | FileCheck %s
+
 <OpenScop>
 
 # =============================================== Global
@@ -33,3 +35,8 @@ CONTEXT
 
 </OpenScop>
 
+// CHECK: module {
+// CHECK:   func @main() {
+// CHECK:     return
+// CHECK:   }
+// CHECK: }
