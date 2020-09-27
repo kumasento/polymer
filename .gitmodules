@@ -7,3 +7,6 @@
 [submodule "openscop"]
 	path = openscop
 	url = git@github.com:kumasento/openscop.git
+[submodule "cloog"]
+	path = cloog
+	url = git@github.com:periscop/cloog
