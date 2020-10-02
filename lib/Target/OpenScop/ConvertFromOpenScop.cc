@@ -323,52 +323,6 @@ Importer::parseUserStmtBody(llvm::StringRef body, std::string &calleeName,
 /// will also generate the declaration of the function to be called, which has
 /// an empty body, in order to make the compiler happy.
 LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
-  // TODO: assuming all user stmt are in OSL body.
-
-  // osl_scop_p scop = options->scop;
-
-  // assert(scop != NULL && "options->scop should not be NULL.");
-  // assert(osl_statement_number(scop->statement) >= userStmt->statement->number
-  // &&
-  //        "Number of statement in OSL should be leq than the ID of the current
-  //        " "userStmt.");
-
-  // // Get the current statement.
-  // osl_statement_p stmt = scop->statement;
-  // for (unsigned i = 1; i < userStmt->statement->number; i++)
-  //   stmt = stmt->next;
-
-  // // Get the body of the current statement.
-  // osl_body_p body = osl_statement_get_body(stmt);
-  // assert(body != NULL && "The body of the statement should not be NULL.");
-  // assert(body->expression != NULL && "The body expression should not be
-  // NULL."); assert(body->iterators != NULL && "The body iterators should not
-  // be NULL.");
-
-  // // TODO: print annotation
-
-  // char *expr = osl_util_identifier_substitution(body->expression->string[0],
-  //                                               body->iterators->string);
-  // char *head = expr;
-
-  // Print the statement and substitute "@...@" markers.
-  // TODO: any better implementation?
-  // while (*expr) {
-  //   if (*expr == '@') {
-  //     int iterator;
-  //     expr += sscanf(expr, "@%d", &iterator) + 2;
-  //     // Go to find the expression for the exact iterator.
-  //     clast_stmt *stmt = userStmt->substitutions;
-  //     for (unsigned i = 0; i < iterator; i++)
-  //       stmt = stmt->next;
-  //     processAssignmentStmt(reinterpret_cast<clast_assignment *>(stmt));
-  //   } else {
-  //     fprintf(output, "%c", *expr++);
-  //   }
-  // }
-  // fprintf(output, "\n");
-  // free(head);
-
   osl_statement_p stmt;
   if (failed(scop->getStatement(userStmt->statement->number - 1, &stmt)))
     return failure();
