@@ -569,8 +569,8 @@ polymer::translateOpenScopToModule(std::unique_ptr<OslScop> scop,
       FileLineColLoc::get("", /*line=*/0, /*column=*/0, context)));
 
   OslSymbolTable symTable;
-  if (createFuncOpFromOpenScop(std::move(scop), module.get(), symTable,
-                               context))
+  if (!createFuncOpFromOpenScop(std::move(scop), module.get(), symTable,
+                                context))
     return {};
 
   return module;
