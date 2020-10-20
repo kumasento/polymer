@@ -67,9 +67,11 @@ struct PlutoTransform : public OpConversionPattern<mlir::FuncOp> {
       return failure();
     }
 
+    scop->print();
+
     PlutoProg *prog = osl_scop_to_pluto_prog(scop->get(), context);
-    pluto_compute_dep_directions(prog);
-    pluto_compute_dep_satisfaction(prog);
+    // pluto_compute_dep_directions(prog);
+    // pluto_compute_dep_satisfaction(prog);
     pluto_tile(prog);
 
     pluto_populate_scop(scop->get(), prog, context);
