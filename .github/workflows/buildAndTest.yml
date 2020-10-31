@@ -75,9 +75,6 @@ jobs:
 
       - name: Get dependences
         run: |
-          echo "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-11 main" | sudo tee -a /etc/apt/sources.list
-          echo "deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic-11 main" | sudo tee -a /etc/apt/sources.list
-          sudo wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
           sudo apt-get update -y
           sudo apt-get install -y clang-format clang-tidy clang-tools clang libc++-dev libc++1 libc++abi-dev libc++abi1 libclang-dev libclang1 libomp-dev libomp5 lld lldb llvm-dev llvm-runtime llvm
           sudo apt-get install -y ninja-build cmake
@@ -163,7 +160,7 @@ jobs:
             -DCMAKE_CXX_COMPILER=clang++ \
             -DLLVM_EXTERNAL_LIT=`pwd`/../llvm/build/bin/llvm-lit \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-          make check-polymer -j$(nproc)
+      # make check-polymer -j$(nproc)
       # Build the Polymer test target in release mode to build and test.
       - name: Build and Test Polymer (Release)
         run: |
@@ -178,7 +175,7 @@ jobs:
             -DCMAKE_C_COMPILER=clang \
             -DCMAKE_CXX_COMPILER=clang++ \
             -DLLVM_EXTERNAL_LIT=`pwd`/../llvm/build/bin/llvm-lit
-          make check-polymer -j$(nproc)
+      # make check-polymer -j$(nproc)
       # --------
       # Lint the Polymer C++ code.
       # -------
