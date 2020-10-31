@@ -22,8 +22,6 @@ jobs:
     steps:
     - name: Add dependences
       run: |
-        sudo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-11 main
-        sudo deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic-11 main
         sudo apt-get update -y
         sudo apt-get install -y clang-format clang-tidy clang-tools clang clangd libc++-dev libc++1 libc++abi-dev libc++abi1 libclang-dev libclang1 liblldb-dev libllvm-ocaml-dev libomp-dev libomp5 lld lldb llvm-dev llvm-runtime llvm python-clang
         sudo apt-get install -y ninja-build cmake
