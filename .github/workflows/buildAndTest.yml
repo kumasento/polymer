@@ -20,8 +20,7 @@ jobs:
       - name: Get Polymer
         uses: actions/checkout@v2
         with:
-          fetch-depth: 0
-          submodules: "recursive"
+          submodules: "true"
 
       # Extract the LLVM submodule hash for use in the cache key.
       - name: Get LLVM Hash
@@ -79,8 +78,7 @@ jobs:
       - name: Get Polymer
         uses: actions/checkout@v2
         with:
-          fetch-depth: 0
-          submodules: "recursive"
+          submodules: "true"
 
       # We'll be running clang-tidy later in this flow.
       - name: Install clang-tidy
@@ -133,6 +131,12 @@ jobs:
       # --------
       # Build and test Polymer in both debug and release mode.
       # --------
+
+      - name: Download submodules in Pluto
+        run: |
+          cd pluto
+          git submodule init
+          git submodule update
 
       # Build the Polymer test target in debug mode to build and test.
       - name: Build and Test Polymer (Assert)
