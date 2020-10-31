@@ -20,7 +20,7 @@ jobs:
       - name: Get Polymer
         uses: actions/checkout@v2
         with:
-          fetch-depth: 2
+          fetch-depth: 0
           submodules: "recursive"
 
       # Extract the LLVM submodule hash for use in the cache key.
@@ -79,7 +79,7 @@ jobs:
       - name: Get Polymer
         uses: actions/checkout@v2
         with:
-          fetch-depth: 2
+          fetch-depth: 0
           submodules: "recursive"
 
       # We'll be running clang-tidy later in this flow.
