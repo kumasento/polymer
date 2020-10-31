@@ -20,7 +20,7 @@ jobs:
       - name: Get Polymer
         uses: actions/checkout@v2
         with:
-          submodules: "true"
+          submodules: "recursive"
 
       # Extract the LLVM submodule hash for use in the cache key.
       - name: Get LLVM Hash
@@ -73,12 +73,12 @@ jobs:
       - name: Configure Environment
         run: echo "::add-path::$GITHUB_WORKSPACE/llvm/install/bin"
 
-      # Clone the CIRCT repo and its submodules. Do shallow clone to save clone
+      # Clone the Polymer repo and its submodules. Do shallow clone to save clone
       # time.
-      - name: Get CIRCT
+      - name: Get Polymer
         uses: actions/checkout@v2
         with:
-          submodules: "true"
+          submodules: "recursive"
 
       # We'll be running clang-tidy later in this flow.
       - name: Install clang-tidy
