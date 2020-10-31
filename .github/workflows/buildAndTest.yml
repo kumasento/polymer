@@ -9,7 +9,7 @@ on: [push, pull_request]
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
 
-   # Build the LLVM submodule then cache it. Do not rebuild if hit in the
+  # Build the LLVM submodule then cache it. Do not rebuild if hit in the
   # cache.
   build-llvm:
     name: Build LLVM
@@ -73,6 +73,16 @@ jobs:
       - name: Configure Environment
         run: echo "::add-path::$GITHUB_WORKSPACE/llvm/install/bin"
 
+      - name: Get dependences
+        run: |
+          echo "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-11 main" | sudo tee -a /etc/apt/sources.list
+          echo "deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic-11 main" | sudo tee -a /etc/apt/sources.list
+          sudo wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          sudo apt-get update -y
+          sudo apt-get install -y clang-format clang-tidy clang-tools clang libc++-dev libc++1 libc++abi-dev libc++abi1 libclang-dev libclang1 libomp-dev libomp5 lld lldb llvm-dev llvm-runtime llvm
+          sudo apt-get install -y ninja-build cmake
+          sudo apt-get install -y libgmp-dev
+      
       # Clone the Polymer repo and its submodules. Do shallow clone to save clone
       # time.
       - name: Get Polymer
