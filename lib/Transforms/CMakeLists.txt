@@ -1,6 +1,7 @@
 add_mlir_library(PolymerTransforms
   InvariantScopTransform.cc
   PlutoTransform.cc
+  Reg2Mem.cc
 
   ADDITIONAL_HEADER_DIRS
   "${POLYMER_MAIN_INCLUDE_DIR}/polymer/Transforms"
