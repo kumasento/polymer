@@ -5,7 +5,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef POLYMER_SUPPORT_OSLSYMBOLTABLE_H
+#define POLYMER_SUPPORT_OSLSYMBOLTABLE_H
+
+#include <unordered_map>
+
 #include "mlir/Support/LLVM.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringMap.h"
 
 using namespace llvm;
@@ -20,6 +26,7 @@ namespace polymer {
 
 class OslScopStmtOpSet;
 
+// TODO: refactorize this data structure.
 class OslSymbolTable {
 public:
   using OpSet = OslScopStmtOpSet;
@@ -30,6 +37,8 @@ public:
   Value getValue(StringRef key);
 
   OpSet getOpSet(StringRef key);
+
+  void insertOpIntoOpSet(StringRef key, Operation *op);
 
   void setValue(StringRef key, Value val, SymbolType type);
 
@@ -43,6 +52,11 @@ public:
 
   void getOpSetSymbols(SmallVectorImpl<StringRef> &symbols);
 
+  // TODO: don't expose this
+  llvm::DenseMap<mlir::Value, std::string> ivArgToName;
+
+  std::unordered_map<std::string, std::string> scatNameToIter;
+
 private:
   StringMap<OpSet> nameToStmtOpSet;
   StringMap<Value> nameToLoopIV;
@@ -50,3 +64,5 @@ private:
 };
 
 } // namespace polymer
+
+#endif

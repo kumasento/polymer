@@ -8,6 +8,7 @@
 #include "cloog/cloog.h"
 #include "osl/osl.h"
 
+#include "polymer/Support/ClastTransform.h"
 #include "polymer/Support/OslScop.h"
 #include "polymer/Support/OslScopStmtOpSet.h"
 #include "polymer/Support/OslSymbolTable.h"
@@ -519,6 +520,12 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
   if (failed(buildIterToScatNameMap(iterToScatName, stmt, scatnames)))
     return failure();
 
+  // TODO: make this more efficient
+  for (auto it : iterToScatName) {
+    std::string scatname(it.second);
+    symTable->scatNameToIter[scatname] = std::string(it.first);
+  }
+
   // TODO: print annotations
 
   // Parse the statement body.
@@ -613,14 +620,49 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
     }
   }
 
-  // Finally create the CallOp.
-  auto callOp = b.create<CallOp>(UnknownLoc::get(context), callee, callerArgs);
+  // TODO: make it more efficient
+  // Finally create a temporary the CallOp.
+  auto callOp =
+      b.create<mlir::CallOp>(UnknownLoc::get(context), callee, callerArgs);
+
+  llvm::SmallVector<mlir::Operation *, 8> forOps;
+  getEnclosingAffineForAndIfOps(*callOp.getOperation(), &forOps);
+
+  llvm::SmallDenseSet<mlir::Value, 8> ivs;
+  for (auto op : forOps)
+    if (auto forOp = dyn_cast<mlir::AffineForOp>(op)) {
+      auto iv = forOp.getInductionVar();
+      ivs.insert(iv);
+    }
+
+  for (unsigned i = 0; i < callerArgs.size(); i++) {
+    auto arg = callerArgs[i];
+
+    // If this arg is found, it should be a loop IV.
+    if (symTable->ivArgToName.find(arg) != symTable->ivArgToName.end()) {
+      // But it doesn't appear to be an IV of the current loop nest. We should
+      // update it to the correct one.
+      if (ivs.find(arg) == ivs.end()) {
+        auto currIVName = symTable->ivArgToName[arg];
+
+        for (auto iv : ivs) {
+          auto ivName = symTable->ivArgToName[iv];
+          // Starts with currIVName.
+          if (ivName.rfind(currIVName, 0) == 0)
+            callerArgs[i] = iv;
+        }
+      }
+    }
+  }
+
+  // This is the final caller to use.
+  auto caller =
+      b.create<mlir::CallOp>(UnknownLoc::get(context), callee, callerArgs);
+  callOp.erase();
 
   // Update StmtOpMap.
-  OslScopStmtOpSet opSet;
-  opSet.insert(callOp);
-  opSet.insert(callee);
-  symTable->setOpSet(calleeName, opSet, OslSymbolTable::StmtOpSet);
+  symTable->insertOpIntoOpSet(calleeName, caller);
+  symTable->insertOpIntoOpSet(calleeName, callee);
 
   return success();
 }
@@ -703,8 +745,12 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   // TODO: confirm is there a case that forOp has multiple operands.
   assert(entryBlock.getNumArguments() == 1 &&
          "affine.for should only have one block argument.");
-  symTable->setValue(forStmt->iterator, entryBlock.getArgument(0),
-                     OslSymbolTable::LoopIV);
+  auto ivArg = entryBlock.getArgument(0);
+  symTable->setValue(forStmt->iterator, ivArg, OslSymbolTable::LoopIV);
+
+  assert(symTable->ivArgToName.find(ivArg) == symTable->ivArgToName.end() &&
+         "ivArg should be placed once only.");
+  symTable->ivArgToName[ivArg] = std::string(forStmt->iterator);
 
   // Create the loop body
   b.setInsertionPointToStart(&entryBlock);
@@ -746,6 +792,9 @@ polymer::createFuncOpFromOpenScop(std::unique_ptr<OslScop> scop,
 
   // Convert to clast
   clast_stmt *rootStmt = cloog_clast_create(program, options);
+
+  // Transform clast for easier processing.
+  transformClastDupIV(rootStmt, scop->get(), options);
 
   // Process the input.
   Importer deserializer(context, module, &symTable, scop.get(), options);

@@ -2,6 +2,7 @@ add_mlir_library(PolymerSupport
   OslScop.cc
   OslScopStmtOpSet.cc
   OslSymbolTable.cc
+  ClastTransform.cc
 
   ADDITIONAL_HEADER_DIRS
   ${POLYMER_MAIN_INCLUDE_DIR}/polymer/Support

@@ -34,6 +34,12 @@ OslSymbolTable::OpSet OslSymbolTable::getOpSet(StringRef key) {
   return nameToStmtOpSet.lookup(key);
 }
 
+void OslSymbolTable::insertOpIntoOpSet(StringRef key, Operation *op) {
+  if (nameToStmtOpSet.find(key) == nameToStmtOpSet.end())
+    nameToStmtOpSet[key] = OslScopStmtOpSet();
+  nameToStmtOpSet[key].insert(op);
+}
+
 void OslSymbolTable::setValue(StringRef key, Value val, SymbolType type) {
   switch (type) {
   case LoopIV:

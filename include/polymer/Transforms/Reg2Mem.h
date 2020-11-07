@@ -4,8 +4,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef POLYMER_TRANSFORMS_REG2MEM_H
+#define POLYMER_TRANSFORMS_REG2MEM_H
+
 namespace polymer {
 
 void registerRegToMemPass();
 
 }
+
+#endif
