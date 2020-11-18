@@ -190,3 +190,23 @@ func @multi_uses_at_same_block(%A: memref<?xf32>, %B: memref<?x?xf32>, %C: memre
 // CHECK-NEXT:     affine.store %[[VAL1]], %[[ARG2]][%[[I]], %[[J]]] : memref<?x?xf32>
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
+
+
+// ----- 
+
+// Should replace uses in conditionals.
+
+func @use_in_conds(%A: memref<?xf32>, %B: memref<?xf32>) {
+  %c0 = constant 0 : index 
+  %N = dim %A, %c0 : memref<?xf32>
+  %M = dim %B, %c0 : memref<?xf32>
+
+  affine.for %i = 0 to %N {
+    %0 = affine.load %A[%i] : memref<?xf32>
+    affine.if affine_set<(d0)[s0]: (s0 - d0 - 1 >= 0)>(%i)[%M] {
+      affine.store %0, %B[%i] : memref<?xf32>
+    }
+  }
+
+  return
+}
