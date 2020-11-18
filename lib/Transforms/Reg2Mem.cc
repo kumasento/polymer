@@ -8,168 +8,191 @@
 
 #include "mlir/Analysis/AffineAnalysis.h"
 #include "mlir/Analysis/AffineStructures.h"
-#include "mlir/Analysis/Liveness.h"
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/OpImplementation.h"
-#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
+#include "mlir/Transforms/RegionUtils.h"
 #include "mlir/Transforms/Utils.h"
+#include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallSet.h"
 
 using namespace mlir;
 using namespace llvm;
 
 #define DEBUG_TYPE "reg2mem"
 
-static LogicalResult createMemRefFromDomain(FlatAffineConstraints &cst,
-                                            mlir::Value &memref,
-                                            mlir::Type valType,
-                                            mlir::OpBuilder &b,
-                                            int64_t dimSize = 32) {
-  if (cst.getNumDimIds() == 0) {
-    // If there is no dim, we create a scalar memory.
-    memref = b.create<mlir::AllocOp>(b.getUnknownLoc(),
-                                     MemRefType::get({1}, valType));
-  } else {
-    // If not, we create a memory based on the upper bounds of the dims.
-    assert(!cst.isEmpty() &&
-           "There should exist constraints when there are dims.");
+using DefToUsesMap =
+    llvm::DenseMap<mlir::Value, llvm::SetVector<mlir::Operation *>>;
 
-    // For now, we create a memref of a fixed size.
-    // TODO: we should get bounds from the constraints.
-    unsigned rank = cst.getNumDimIds();
+/// Build the mapping of values from where they are defined to where they are
+/// used. We will need this information to decide whether a Value should be
+/// stored in a scratchpad, and if so, what the scratchpad should look like.
+/// Note that we only care about those values that are on the use-def chain that
+/// ends up with an affine write operation, or one with side effects. We also
+/// ignore all the def-use pairs that are in the same block.
+static void mapDefToUses(mlir::FuncOp f, DefToUsesMap &defToUses) {
+  f.walk([&](mlir::Operation *useOp) {
+    // Op that belongs to AffineWriteOpInterface (e.g., affine.store) or has
+    // recursive side effects will be treated as .
+    if (!isa<mlir::AffineWriteOpInterface>(useOp) &&
+        !useOp->hasTrait<mlir::OpTrait::HasRecursiveSideEffects>())
+      return;
+    // Should filter out for and if ops.
+    if (isa<mlir::AffineForOp, mlir::AffineIfOp>(useOp))
+      return;
 
-    std::vector<int64_t> dimSizes(rank, dimSize);
-    memref = b.create<mlir::AllocOp>(b.getUnknownLoc(),
-                                     MemRefType::get(dimSizes, valType));
-  }
+    // Assuming the def-use chain is acyclic.
+    llvm::SmallVector<mlir::Operation *, 8> ops;
+    ops.push_back(useOp);
 
-  return success();
+    while (!ops.empty()) {
+      mlir::Operation *op = ops.pop_back_val();
+
+      for (mlir::Value v : op->getOperands()) {
+        mlir::Operation *defOp = v.getDefiningOp();
+        // Don't need to go further if v is defined by the following operations.
+        // TODO: how to handle the case that v is a BlockArgument, i.e., loop
+        // carried values?
+        if (!defOp || isa<mlir::AllocOp, mlir::DimOp>(defOp))
+          continue;
+
+        // The block that defines the value is different from the block of the
+        // current op.
+        if (v.getParentBlock() != op->getBlock())
+          defToUses[v].insert(op);
+
+        // No need to look at the operands of the following list of operations.
+        if (!isa<mlir::AffineLoadOp>(defOp))
+          ops.push_back(defOp);
+      }
+    }
+  });
 }
 
-static LogicalResult demoteRegisterToMemory(mlir::FuncOp f,
-                                            mlir::OpBuilder &b) {
-  // Collect the liveness information for all blocks in the current function.
-  Liveness liveness(f);
+/// Keep a single use for each def in the same block. The reason for doing so is
+/// that we only create one load op for each def value in the same block.
+static void filterUsesInSameBlock(DefToUsesMap &defToUses) {
+  llvm::SmallSet<mlir::Block *, 4> visitedBlocks;
 
-  // Extract all affine.for operations.
-  llvm::SmallVector<AffineForOp, 4> forOps;
-  f.walk([&](mlir::AffineForOp forOp) { forOps.push_back(forOp); });
+  for (auto &defUsePair : defToUses) {
+    visitedBlocks.clear();
+    llvm::SetVector<mlir::Operation *> &useOps = defUsePair.second;
+    llvm::SetVector<mlir::Operation *> opsToRemove;
 
-  // For each affine.for, we check their live-in values. For each of them, if
-  // it is a register, we go to where that value is defined, store that value
-  // in a scratchpad memory, and load it into the current block at its
-  // beginning.
-  for (auto forOp : forOps) {
-    auto &allInValues = liveness.getLiveIn(forOp.getBody());
+    // Iterate every use op, and if it's block has been visited, we put that op
+    // into the toRemove set.
+    for (mlir::Operation *op : useOps) {
+      mlir::Block *block = op->getBlock();
+      if (visitedBlocks.contains(block))
+        opsToRemove.insert(op);
+      else
+        visitedBlocks.insert(block);
+    }
 
-    for (auto inVal : allInValues) {
-      // We ignore all the block arguments. They are loop IVs.
-      if (inVal.dyn_cast<mlir::BlockArgument>())
-        continue;
+    for (mlir::Operation *op : opsToRemove)
+      useOps.remove(op);
+  }
+}
 
-      auto defOp = inVal.getDefiningOp();
+/// Creates a single-entry scratchpad memory that stores values from the
+/// defining point and can be loaded when needed at the uses.
+static mlir::AllocaOp createScratchpadAllocaOp(mlir::OpResult val,
+                                               mlir::OpBuilder &b) {
+  // Sanity checks on the defining op.
+  mlir::Operation *defOp = val.getOwner();
 
-      // We ignore all the values defined by:
-      // - AllocOp: memref itself cannot be demoted
-      // - DimOp: the dimensionality will be handled by other passes.
-      if (isa<mlir::AllocOp, mlir::DimOp>(defOp))
-        continue;
+  // Set the allocation point after where the val is defined.
+  OpBuilder::InsertionGuard guard(b);
+  b.setInsertionPointAfter(defOp);
 
-      // TODO: mark as DEBUG
-      LLVM_DEBUG({ inVal.dump(); });
+  // The memref shape is 1 and the type is derived from val.
+  return b.create<mlir::AllocaOp>(defOp->getLoc(),
+                                  MemRefType::get({1}, val.getType()));
+}
 
-      // Extract the domain of the defining op for inVal.
-      llvm::SmallVector<Operation *, 4> enclosingOps;
-      mlir::getEnclosingAffineForAndIfOps(*defOp, &enclosingOps);
-      LLVM_DEBUG({
-        llvm::dbgs() << "Number of enclosing affine for & if: "
-                     << enclosingOps.size() << "\n";
-      });
+/// Creata an AffineStoreOp for the value to be stored on the scratchpad.
+static mlir::AffineStoreOp createScratchpadStoreOp(mlir::Value valToStore,
+                                                   mlir::AllocaOp allocaOp,
+                                                   mlir::OpBuilder &b) {
+  // Create a storeOp to the memref using address 0. The new storeOp will be
+  // placed right after the allocaOp, and its location is hinted by allocaOp.
+  // Here we assume that allocaOp is dominated by the defining op of valToStore.
+  OpBuilder::InsertionGuard guard(b);
+  b.setInsertionPointAfter(allocaOp);
 
-      FlatAffineConstraints cst;
-      if (failed(mlir::getIndexSet(enclosingOps, &cst)))
-        return failure();
+  return b.create<mlir::AffineStoreOp>(
+      allocaOp.getLoc(), valToStore, allocaOp.getResult(),
+      b.getConstantAffineMap(0), std::vector<mlir::Value>());
+}
 
-      LLVM_DEBUG({
-        llvm::dbgs() << "Domain constraints for the defining op:\n";
-        cst.dump();
-      });
+/// Create an AffineLoadOp for the value stored in the scratchpad. The insertion
+/// point will be at the beginning of the block of the useOp, such that all the
+/// subsequent uses of the Value in the scratchpad can re-use the same load
+/// result. Note that we don't check whether the useOp is still using the
+/// original value that is stored in the scratchpad (some replacement could
+/// happen already), you need to do that before calling this function to avoid
+/// possible redundancy. This function won't replace uses.
+static mlir::AffineLoadOp createScratchpadLoadOp(mlir::AllocaOp allocaOp,
+                                                 mlir::Operation *useOp,
+                                                 mlir::OpBuilder &b) {
+  // The insertion point will be at the beginning of the parent block for useOp.
+  OpBuilder::InsertionGuard guard(b);
+  b.setInsertionPointToStart(useOp->getBlock());
+  // The location is set to be the useOp that will finally use this newly
+  // created load op. The address is set to be 0 since the memory has only one
+  // element in it. You will need to replace the input to useOp outside.
+  return b.create<mlir::AffineLoadOp>(useOp->getLoc(), allocaOp.getResult(),
+                                      b.getConstantAffineMap(0),
+                                      std::vector<mlir::Value>());
+}
 
-      // Create an individual memref for each value.
-      // TODO: there should be a way to minimise the number of memrefs
-      // created.
-      mlir::Value scratchpad;
-      const int64_t scratchpadSizePerDim = 32;
+static void demoteRegisterToMemory(mlir::FuncOp f, OpBuilder &b) {
+  DefToUsesMap defToUses;
+  // Get the mapping from a value to its uses that are in a different block as
+  // where the value itself is defined.
+  mapDefToUses(f, defToUses);
+  // Make sure every def will have a single use in each block.
+  filterUsesInSameBlock(defToUses);
 
-      // Insert the scratchpad right at the start of the function.
-      // TODO: should change the location if we need to refer symbols of SSA
-      // values.
-      auto &entryBlock = *f.getBlocks().begin();
-      b.setInsertionPointToStart(&entryBlock);
+  // Handle each def-use pair in in the current function.
+  for (const auto &defUsesPair : defToUses) {
+    // The value to be stored in a scratchpad.
+    mlir::Value val = defUsesPair.first;
 
-      if (failed(createMemRefFromDomain(cst, scratchpad, inVal.getType(), b,
-                                        /*dimSize=*/scratchpadSizePerDim)))
-        return failure();
+    // Create the alloca op for the scratchpad.
+    mlir::AllocaOp allocaOp =
+        createScratchpadAllocaOp(val.dyn_cast<mlir::OpResult>(), b);
 
-      MemRefType memTy = scratchpad.getType().dyn_cast<MemRefType>();
-      int64_t rank = memTy.getRank();
+    // Create the store op that stores val into the scratchpad for future uses.
+    mlir::AffineStoreOp storeOp = createScratchpadStoreOp(val, allocaOp, b);
 
-      // Get the address for load and store scratchpad values.
-      AffineMap addrMap;
-      // If the memref created is rank 1 and has a single element, we could just
-      // use '0' as its access address. Otherwise, we use the newly calculated
-      // addrExprs.
-      if (rank == 1 && memTy.getDimSize(0) == 1) {
-        addrMap =
-            AffineMap::get(cst.getNumDimIds(), 0, b.getAffineConstantExpr(0));
-      } else {
-        llvm::SmallVector<AffineExpr, 8> addrExprs;
-        // The address to access the scratchpad is calculated by the current IV
-        // mod by the pre-known, fixed scratchpad size.
-        for (int64_t i = 0; i < rank; i++)
-          addrExprs.push_back(b.getAffineDimExpr(i) % scratchpadSizePerDim);
+    // Iterate each use of val, and create the load op, the result of which will
+    // replace the original val. After creating this load op, we replaces the
+    // uses of the original val in the same block as the load op by the result
+    // of it. And for those already replaced, we pop them out of the list to be
+    // processed (useOps).
+    const llvm::SetVector<mlir::Operation *> &useOps = defUsesPair.second;
 
-        addrMap =
-            AffineMap::get(cst.getNumDimIds(), 0, addrExprs, b.getContext());
-      }
+    for (mlir::Operation *useOp : useOps) {
+      // Create the load op for it.
+      mlir::AffineLoadOp loadOp = createScratchpadLoadOp(allocaOp, useOp, b);
 
-      // Get the indices of all the enclosing for-loops that will be applied for
-      // address calculation.
-      llvm::SmallVector<mlir::Value, 8> addrInds;
-      for (auto op : enclosingOps)
-        if (auto enclosingForOp = dyn_cast<mlir::AffineForOp>(op))
-          addrInds.push_back(enclosingForOp.getInductionVar());
-
-      // Store the live-in value into the scratchpad.
-      b.setInsertionPointAfter(defOp);
-      b.create<mlir::AffineStoreOp>(b.getUnknownLoc(), inVal, scratchpad,
-                                    addrMap, addrInds);
-
-      // Load the live-in value back from the scratchpad.
-      b.setInsertionPointToStart(forOp.getBody());
-      auto newInVal = b.create<mlir::AffineLoadOp>(
-          b.getUnknownLoc(), scratchpad, addrMap, addrInds);
-
-      // Replace every use of the live-in value by the result of the new load
-      // operation. Note that we should only replace those in the current block.
-      inVal.replaceUsesWithIf(newInVal, [&](mlir::OpOperand &operand) -> bool {
-        return operand.getOwner()->getBlock() == forOp.getBody();
+      // Replace the uses of val in the same region as useOp (or loadOp).
+      val.replaceUsesWithIf(loadOp.getResult(), [&](mlir::OpOperand &operand) {
+        mlir::Operation *currUseOp = operand.getOwner();
+        //  Check the equivalence of the regions.
+        return currUseOp->getParentRegion() == useOp->getParentRegion();
       });
     }
   }
-
-  return success();
 }
 
 namespace {
@@ -182,8 +205,7 @@ public:
     mlir::FuncOp f = getOperation();
     auto builder = OpBuilder(f.getContext());
 
-    if (failed(demoteRegisterToMemory(f, builder)))
-      signalPassFailure();
+    demoteRegisterToMemory(f, builder);
   }
 };
 
