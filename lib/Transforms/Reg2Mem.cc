@@ -38,7 +38,7 @@ using DefToUsesMap =
 /// Note that we only care about those values that are on the use-def chain that
 /// ends up with an affine.store operation. We also ignore all the def-use pairs
 /// that are in the same block.
-static LogicalResult mapDefToUses(mlir::FuncOp f, DefToUsesMap &defToUses) {
+static void mapDefToUses(mlir::FuncOp f, DefToUsesMap &defToUses) {
   f.walk([&](mlir::AffineStoreOp storeOp) {
     // Assuming the def-use chain is acyclic.
     llvm::SmallVector<mlir::Operation *, 8> ops;
@@ -66,8 +66,6 @@ static LogicalResult mapDefToUses(mlir::FuncOp f, DefToUsesMap &defToUses) {
       }
     }
   });
-
-  return success();
 }
 
 /// Keep a single use for each def in the same block. The reason for doing so is
@@ -147,12 +145,11 @@ static mlir::AffineLoadOp createScratchpadLoadOp(mlir::AllocaOp allocaOp,
                                       std::vector<mlir::Value>());
 }
 
-static LogicalResult demoteRegisterToMemory(mlir::FuncOp f, OpBuilder &b) {
+static void demoteRegisterToMemory(mlir::FuncOp f, OpBuilder &b) {
+  DefToUsesMap defToUses;
   // Get the mapping from a value to its uses that are in a different block as
   // where the value itself is defined.
-  DefToUsesMap defToUses;
-  if (failed(mapDefToUses(f, defToUses)))
-    return failure();
+  mapDefToUses(f, defToUses);
   // Make sure every def will have a single use in each block.
   filterUsesInSameBlock(defToUses);
 
@@ -187,8 +184,6 @@ static LogicalResult demoteRegisterToMemory(mlir::FuncOp f, OpBuilder &b) {
       });
     }
   }
-
-  return success();
 }
 
 namespace {
@@ -201,8 +196,7 @@ public:
     mlir::FuncOp f = getOperation();
     auto builder = OpBuilder(f.getContext());
 
-    if (failed(demoteRegisterToMemory(f, builder)))
-      signalPassFailure();
+    demoteRegisterToMemory(f, builder);
   }
 };
 
