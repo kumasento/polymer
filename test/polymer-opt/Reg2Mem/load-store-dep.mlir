@@ -196,7 +196,7 @@ func @multi_uses_at_same_block(%A: memref<?xf32>, %B: memref<?x?xf32>, %C: memre
 
 // Should replace uses in conditionals.
 
-func @use_in_conds(%A: memref<?xf32>, %B: memref<?xf32>) {
+func @use_in_conds(%A: memref<?xf32>, %B: memref<?xf32>, %C: memref<?xf32>) {
   %c0 = constant 0 : index 
   %N = dim %A, %c0 : memref<?xf32>
   %M = dim %B, %c0 : memref<?xf32>
@@ -205,23 +205,28 @@ func @use_in_conds(%A: memref<?xf32>, %B: memref<?xf32>) {
     %0 = affine.load %A[%i] : memref<?xf32>
     affine.if affine_set<(d0)[s0]: (s0 - d0 - 1 >= 0)>(%i)[%M] {
       affine.store %0, %B[%i] : memref<?xf32>
+    } else {
+      affine.store %0, %C[%i] : memref<?xf32>
     }
   }
 
   return
 }
 
-// CHECK: func @use_in_conds(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?xf32>) {
+// CHECK: func @use_in_conds(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?xf32>, %[[ARG2:.*]]: memref<?xf32>) {
 // CHECK-NEXT:   %[[C0:.*]] = constant 0 : index
 // CHECK-NEXT:   %[[VAL0:.*]] = dim %[[ARG0]], %[[C0]] : memref<?xf32>
 // CHECK-NEXT:   %[[VAL1:.*]] = dim %[[ARG1]], %[[C0]] : memref<?xf32>
-// CHECK-NEXT:   affine.for %[[ARG2]] = 0 to %[[VAL0]] {
-// CHECK-NEXT:     %[[VAL2:.*]] = affine.load %[[ARG0]][%[[ARG2]]] : memref<?xf32>
+// CHECK-NEXT:   affine.for %[[ARG3:.*]] = 0 to %[[VAL0]] {
+// CHECK-NEXT:     %[[VAL2:.*]] = affine.load %[[ARG0]][%[[ARG3]]] : memref<?xf32>
 // CHECK-NEXT:     %[[MEM0:.*]] = alloca() : memref<1xf32>
 // CHECK-NEXT:     affine.store %[[VAL2]], %[[MEM0]][0] : memref<1xf32>
-// CHECK-NEXT:     affine.if #[[SET0:.*]](%[[ARG2]])[%[[VAL1]]] {
+// CHECK-NEXT:     affine.if #[[SET0:.*]](%[[ARG3]])[%[[VAL1]]] {
 // CHECK-NEXT:       %[[VAL3:.*]] = affine.load %[[MEM0]][0] : memref<1xf32>
-// CHECK-NEXT:       affine.store %[[VAL3]], %[[ARG1]][%[[ARG2]]] : memref<?xf32>
+// CHECK-NEXT:       affine.store %[[VAL3]], %[[ARG1]][%[[ARG3]]] : memref<?xf32>
+// CHECK-NEXT:     } else {
+// CHECK-NEXT:       %[[VAL3:.*]] = affine.load %[[MEM0]][0] : memref<1xf32>
+// CHECK-NEXT:       affine.store %[[VAL3]], %[[ARG2]][%[[ARG3]]] : memref<?xf32>
 // CHECK-NEXT:     }
 // CHECK-NEXT:   }
 // CHECK-NEXT:   return
