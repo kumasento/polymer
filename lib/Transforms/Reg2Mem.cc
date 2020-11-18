@@ -178,12 +178,12 @@ static LogicalResult demoteRegisterToMemory(mlir::FuncOp f, OpBuilder &b) {
     for (mlir::Operation *useOp : useOps) {
       // Create the load op for it.
       mlir::AffineLoadOp loadOp = createScratchpadLoadOp(allocaOp, useOp, b);
-      // Replace the uses of val in the same block as useOp (or loadOp).
+
+      // Replace the uses of val in the same region as useOp (or loadOp).
       val.replaceUsesWithIf(loadOp.getResult(), [&](mlir::OpOperand &operand) {
         mlir::Operation *currUseOp = operand.getOwner();
-
-        //  Check the equivalence of the blocks.
-        return currUseOp->getBlock() == useOp->getBlock();
+        //  Check the equivalence of the regions.
+        return currUseOp->getParentRegion() == useOp->getParentRegion();
       });
     }
   }
