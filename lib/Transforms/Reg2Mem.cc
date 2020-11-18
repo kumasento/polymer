@@ -170,7 +170,7 @@ static void demoteRegisterToMemory(mlir::FuncOp f, OpBuilder &b) {
     // uses of the original val in the same block as the load op by the result
     // of it. And for those already replaced, we pop them out of the list to be
     // processed (useOps).
-    llvm::SetVector<mlir::Operation *> useOps = defUsesPair.second;
+    const llvm::SetVector<mlir::Operation *> &useOps = defUsesPair.second;
 
     for (mlir::Operation *useOp : useOps) {
       // Create the load op for it.
