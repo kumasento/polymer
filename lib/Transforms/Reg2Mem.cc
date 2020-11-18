@@ -36,13 +36,22 @@ using DefToUsesMap =
 /// used. We will need this information to decide whether a Value should be
 /// stored in a scratchpad, and if so, what the scratchpad should look like.
 /// Note that we only care about those values that are on the use-def chain that
-/// ends up with an affine.store operation. We also ignore all the def-use pairs
-/// that are in the same block.
+/// ends up with an affine write operation, or one with side effects. We also
+/// ignore all the def-use pairs that are in the same block.
 static void mapDefToUses(mlir::FuncOp f, DefToUsesMap &defToUses) {
-  f.walk([&](mlir::AffineStoreOp storeOp) {
+  f.walk([&](mlir::Operation *useOp) {
+    // Op that belongs to AffineWriteOpInterface (e.g., affine.store) or has
+    // recursive side effects will be treated as .
+    if (!isa<mlir::AffineWriteOpInterface>(useOp) &&
+        !useOp->hasTrait<mlir::OpTrait::HasRecursiveSideEffects>())
+      return;
+    // Should filter out for and if ops.
+    if (isa<mlir::AffineForOp, mlir::AffineIfOp>(useOp))
+      return;
+
     // Assuming the def-use chain is acyclic.
     llvm::SmallVector<mlir::Operation *, 8> ops;
-    ops.push_back(storeOp);
+    ops.push_back(useOp);
 
     while (!ops.empty()) {
       mlir::Operation *op = ops.pop_back_val();

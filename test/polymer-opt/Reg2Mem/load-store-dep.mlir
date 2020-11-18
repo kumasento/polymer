@@ -231,3 +231,75 @@ func @use_in_conds(%A: memref<?xf32>, %B: memref<?xf32>, %C: memref<?xf32>) {
 // CHECK-NEXT:   }
 // CHECK-NEXT:   return
 // CHECK-NEXT: }
+
+// -----
+
+// Dealing with function call.
+
+func @f(%x: f32, %y: f32) -> (f32) {
+  %0 = addf %x, %y : f32
+  return %0 : f32
+}
+
+func @use_by_arith_call(%A: memref<?xf32>, %B: memref<?x?xf32>) {
+  %c0 = constant 0 : index 
+  %c1 = constant 1 : index 
+
+  %N = dim %B, %c0 : memref<?x?xf32>
+  %M = dim %B, %c1 : memref<?x?xf32>
+
+  affine.for %i = 0 to %N {
+    %0 = affine.load %A[%i] : memref<?xf32>
+    affine.for %j = 1 to %M {
+      %k = affine.apply affine_map<(d0)[] -> (d0 - 1)>(%j)
+      %1 = affine.load %B[%i, %k] : memref<?x?xf32>
+      %2 = call @f(%0, %1) : (f32, f32) -> (f32)
+      affine.store %2, %B[%i, %j] : memref<?x?xf32>
+    }
+  }
+
+  return
+}
+
+// CHECK: func @use_by_arith_call(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?x?xf32>) {
+// CHECK-NEXT:   %[[CST0:.*]] = constant 0 : index
+// CHECK-NEXT:   %[[CST1:.*]] = constant 1 : index
+// CHECK-NEXT:   %[[DIM0:.*]] = dim %[[ARG1]], %[[CST0]] : memref<?x?xf32>
+// CHECK-NEXT:   %[[DIM1:.*]] = dim %[[ARG1]], %[[CST1]] : memref<?x?xf32>
+// CHECK-NEXT:   affine.for %[[I:.*]] = 0 to %[[DIM0]] {
+// CHECK-NEXT:     %[[VAL0:.*]] = affine.load %[[ARG0]][%[[I]]] : memref<?xf32>
+// CHECK-NEXT:     %[[MEM0:.*]] = alloca() : memref<1xf32>
+// CHECK-NEXT:     affine.store %[[VAL0]], %[[MEM0]][0] : memref<1xf32>
+// CHECK-NEXT:     affine.for %[[J:.*]] = 1 to %[[DIM1]] {
+// CHECK-NEXT:       %[[VAL1:.*]] = affine.load %[[MEM0]][0] : memref<1xf32>
+// CHECK-NEXT:       %[[K:.*]] = affine.apply #[[MAP2:.*]](%[[J]])
+// CHECK-NEXT:       %[[VAL2:.*]] = affine.load %[[ARG1]][%[[I]], %[[K]]] : memref<?x?xf32>
+// CHECK-NEXT:       %[[VAL3:.*]] = call @f(%[[VAL1]], %[[VAL2]]) : (f32, f32) -> f32
+// CHECK-NEXT:       affine.store %[[VAL3]], %[[ARG1]][%[[I]], %[[J]]] : memref<?x?xf32>
+// CHECK-NEXT:     }
+// CHECK-NEXT:   }
+// CHECK-NEXT:   return
+// CHECK-NEXT: }
+
+
+// -----
+
+// TODO: make this test case work.
+
+func @g(%0: f32, %i: index, %mem: memref<?xf32>) {
+  affine.store %0, %mem[%i] : memref<?xf32>
+  return 
+}
+
+func @use_by_store_call(%A: memref<?xf32>) {
+  %c0 = constant 0 : index 
+  %N = dim %A, %c0 : memref<?xf32>
+
+  %cst = constant 1.23 : f32
+
+  affine.for %i = 0 to %N {
+    call @g(%cst, %i, %A) : (f32, index, memref<?xf32>) -> ()
+  }
+
+  return 
+}
