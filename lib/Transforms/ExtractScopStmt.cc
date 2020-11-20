@@ -30,8 +30,7 @@ using namespace polymer;
 using CalleeName = SmallString<16>;
 
 /// Discover the operations that have memory write effects.
-/// TODO: use MemoryEffects to properly detect ops that has memory write side
-/// effects.
+/// TODO: support CallOp.
 static void discoverMemWriteOps(mlir::FuncOp f,
                                 SmallVectorImpl<Operation *> &ops) {
   f.getOperation()->walk([&](Operation *op) {
@@ -40,41 +39,47 @@ static void discoverMemWriteOps(mlir::FuncOp f,
   });
 }
 
-/// Recursively get all the ops belongs to a statement starting from the given
+/// Get all the ops belongs to a statement starting from the given
 /// operation. The sequence of the operations in defOps will be reversed,
 /// depth-first, starting from op. Note that the initial op will be placed in
 /// the resulting ops as well.
-static void getScopStmtOps(Operation *op, SetVector<Operation *> &ops,
+static void getScopStmtOps(Operation *writeOp, SetVector<Operation *> &ops,
                            SetVector<mlir::Value> &args) {
-  // Base case.
-  if (!op)
-    return;
+  SmallVector<Operation *, 8> worklist;
+  worklist.push_back(writeOp);
+  ops.insert(writeOp);
 
-  // Types of operation that terminates the recusion:
-  // Memory allocation ops will be omitted, reaching them means the end of
-  // recursion. We will take care of these ops in other passes. The result of
-  // these allocation op, i.e., memref, will be
-  if (isa<mlir::AllocaOp, mlir::AllocOp>(op)) {
-    for (mlir::Value result : op->getResults())
-      args.insert(result);
-    return;
-  }
+  while (!worklist.empty()) {
+    Operation *op = worklist.pop_back_val();
 
-  // TODO: checks if op has side effects.
+    // Types of operation that terminates the recusion:
+    // Memory allocation ops will be omitted, reaching them means the end of
+    // recursion. We will take care of these ops in other passes. The result of
+    // these allocation op, i.e., memref, will be treated as input arguments to
+    // the new statement function.
+    if (isa<mlir::AllocaOp, mlir::AllocOp>(op)) {
+      for (mlir::Value result : op->getResults())
+        args.insert(result);
+      continue;
+    }
 
-  // Keep the op in the given set.
-  ops.insert(op);
+    // Keep the op in the given set. ops also stores the "visited" information:
+    // any op inside ops will be treated as visited and won't be inserted into
+    // the worklist again.
+    ops.insert(op);
 
-  // Recursively visit other defining ops that are not in ops.
-  for (auto operand : op->getOperands()) {
-    // Stop the recursion at block arguments, e.g., loop IVs, external
-    // arguments, and insert it into args.
-    if (operand.isa<BlockArgument>()) {
-      args.insert(operand);
-    } else {
-      auto defOp = operand.getDefiningOp();
-      if (!ops.contains(defOp))
-        getScopStmtOps(defOp, ops, args);
+    // Recursively visit other defining ops that are not in ops.
+    for (mlir::Value operand : op->getOperands()) {
+      Operation *defOp = operand.getDefiningOp();
+      // We find the defining op and place it in the worklist, if it is not null
+      // and has not been visited yet.
+      if (defOp && !ops.contains(defOp))
+        worklist.push_back(defOp);
+      // Otherwise, stop the recursion at values that don't have a defining op,
+      // i.e., block arguments, which could be loop IVs, external arguments,
+      // etc. And insert them into the argument list (args).
+      else
+        args.insert(operand);
     }
   }
 
@@ -89,13 +94,14 @@ static void getCalleeName(unsigned calleeId, CalleeName &calleeName,
 
 /// Create the function definition that contains all the operations that belong
 /// to a Scop statement. The function name will be the given calleeName, its
-/// contents will be ops, and its type is depend on the given list of args. This
+/// contents will be ops, and its type depends on the given list of args. This
 /// callee function has a single block in it, and it has no returned value. The
 /// callee will be inserted at the end of the whole module.
 static mlir::FuncOp createCallee(StringRef calleeName,
-                                 SetVector<Operation *> &ops,
-                                 SetVector<mlir::Value> &args, mlir::ModuleOp m,
-                                 Operation *writeOp, OpBuilder &b) {
+                                 const SetVector<Operation *> &ops,
+                                 const SetVector<mlir::Value> &args,
+                                 mlir::ModuleOp m, Operation *writeOp,
+                                 OpBuilder &b) {
   assert(ops.contains(writeOp) && "writeOp should be a member in ops.");
 
   unsigned numArgs = args.size();
@@ -103,9 +109,7 @@ static mlir::FuncOp createCallee(StringRef calleeName,
 
   // Get a list of types of all function arguments, and use it to create the
   // function type.
-  SmallVector<mlir::Type, 8> argTypes;
-  for (mlir::Value arg : args)
-    argTypes.push_back(arg.getType());
+  TypeRange argTypes = ValueRange(args.getArrayRef()).getTypes();
   mlir::FunctionType calleeType = b.getFunctionType(argTypes, llvm::None);
 
   // Insert the new callee before the end of the module body.
@@ -122,8 +126,7 @@ static mlir::FuncOp createCallee(StringRef calleeName,
   // replace the uses of the values in the original function to the newly
   // declared entryBlock's input.
   BlockAndValueMapping mapping;
-  for (unsigned i = 0; i < numArgs; i++)
-    mapping.map(args[i], entryBlock->getArgument(i));
+  mapping.map(args, entryBlock->getArguments());
 
   // Clone the operations into the new callee function. In case they are not in
   // the correct order, we sort them topologically beforehand.
@@ -132,7 +135,7 @@ static mlir::FuncOp createCallee(StringRef calleeName,
     b.clone(*sortedOps[i], mapping);
 
   // Terminator
-  b.create<mlir::ReturnOp>(b.getUnknownLoc());
+  b.create<mlir::ReturnOp>(callee.getLoc());
 
   return callee;
 }
@@ -140,12 +143,13 @@ static mlir::FuncOp createCallee(StringRef calleeName,
 /// Create a caller to the callee right after the writeOp, which will be removed
 /// later.
 static mlir::CallOp createCaller(mlir::FuncOp callee,
-                                 SetVector<mlir::Value> &args,
+                                 const SetVector<mlir::Value> &args,
                                  Operation *writeOp, OpBuilder &b) {
   OpBuilder::InsertionGuard guard(b);
   b.setInsertionPointAfter(writeOp);
 
-  return b.create<mlir::CallOp>(writeOp->getLoc(), callee, args.takeVector());
+  return b.create<mlir::CallOp>(writeOp->getLoc(), callee,
+                                ValueRange(args.getArrayRef()));
 }
 
 /// Remove those ops that are already in the callee, and not have uses by other
@@ -163,24 +167,26 @@ static void removeExtractedOps(SetVector<Operation *> &opsToRemove) {
   }
 }
 
-/// The main function that extracts scop statements as functions.
-static void extractScopStmt(mlir::FuncOp f, OpBuilder &b) {
+/// The main function that extracts scop statements as functions. Returns the
+/// number of callees extracted from this function.
+static unsigned extractScopStmt(mlir::FuncOp f, unsigned numCallees,
+                                OpBuilder &b) {
   // First discover those write ops that will be the "terminator" of each scop
   // statement in the given function.
   SmallVector<Operation *, 8> writeOps;
   discoverMemWriteOps(f, writeOps);
 
-  unsigned numWriteOps = writeOps.size();
-
-  SetVector<Operation *> ops;
-  SetVector<mlir::Value> args;
   SetVector<Operation *> opsToRemove;
 
+  unsigned numWriteOps = writeOps.size();
+
   // Use the top-level module to locate places for new functions insertion.
-  mlir::ModuleOp m = dyn_cast<mlir::ModuleOp>(f.getParentOp());
+  mlir::ModuleOp m = cast<mlir::ModuleOp>(f.getParentOp());
   // A writeOp will result in a new caller/callee pair.
   for (unsigned i = 0; i < numWriteOps; i++) {
-    ops.clear();
+    SetVector<Operation *> ops;
+    SetVector<mlir::Value> args;
+
     // Get all the ops inside a statement that corresponds to the current write
     // operation.
     Operation *writeOp = writeOps[i];
@@ -188,7 +194,7 @@ static void extractScopStmt(mlir::FuncOp f, OpBuilder &b) {
 
     // Get the name of the callee. Should be in the form of "S<id>".
     CalleeName calleeName;
-    getCalleeName(i, calleeName);
+    getCalleeName(i + numCallees, calleeName);
 
     // Create the callee.
     mlir::FuncOp callee = createCallee(calleeName, ops, args, m, writeOp, b);
@@ -201,18 +207,25 @@ static void extractScopStmt(mlir::FuncOp f, OpBuilder &b) {
 
   // Remove those extracted ops in the original function.
   removeExtractedOps(opsToRemove);
+
+  return numWriteOps;
 }
 
 namespace {
 
 class ExtractScopStmtPass
     : public mlir::PassWrapper<ExtractScopStmtPass,
-                               OperationPass<mlir::FuncOp>> {
+                               OperationPass<mlir::ModuleOp>> {
   void runOnOperation() override {
-    mlir::FuncOp f = getOperation();
-    OpBuilder b(f.getContext());
+    mlir::ModuleOp m = getOperation();
+    OpBuilder b(m.getContext());
 
-    extractScopStmt(f, b);
+    SmallVector<mlir::FuncOp, 4> funcs;
+    m.walk([&](mlir::FuncOp f) { funcs.push_back(f); });
+
+    unsigned numCallees = 0;
+    for (mlir::FuncOp f : funcs)
+      numCallees += extractScopStmt(f, numCallees, b);
   }
 };
 
