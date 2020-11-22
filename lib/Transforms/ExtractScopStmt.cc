@@ -136,6 +136,10 @@ static mlir::FuncOp createCallee(StringRef calleeName,
 
   // Terminator
   b.create<mlir::ReturnOp>(callee.getLoc());
+  // Set the scop_stmt attribute for identification at a later stage.
+  // TODO: in the future maybe we could create a customized dialect, e.g., Scop,
+  // that contains scop stmt FuncOp, e.g., ScopStmtOp.
+  callee.setAttr("scop.stmt", b.getUnitAttr());
 
   return callee;
 }
