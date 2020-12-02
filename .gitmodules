@@ -1,6 +1,6 @@
 [submodule "llvm"]
 	path = llvm
-	url = git@github.com:llvm/llvm-project
+	url = git@github.com:wsmoses/MLIR-GPU
 [submodule "pluto"]
 	path = pluto
 	url = git@github.com:kumasento/pluto
