@@ -108,7 +108,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %1 = alloc() : memref<1300x1300xf64>
     call @init_array(%c1300_i32, %0, %1) : (i32, memref<1300x1300xf64>, memref<1300x1300xf64>) -> ()
     call @polybench_timer_start() : () -> ()
-    call @"p\F6\D8\02\00\00\00\00acobi_2d_new"(%c500_i32, %c1300_i32, %0, %1) : (i32, i32, memref<1300x1300xf64>, memref<1300x1300xf64>) -> ()
+    call @"P\D1\AE\02\00\00\00\00acobi_2d_new"(%c500_i32, %c1300_i32, %0, %1) : (i32, i32, memref<1300x1300xf64>, memref<1300x1300xf64>) -> ()
     call @polybench_timer_stop() : () -> ()
     call @polybench_timer_print() : () -> ()
     %2 = cmpi "sgt", %arg0, %c42_i32 : i32
@@ -341,7 +341,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %9, %arg0[%arg1, %arg2] : memref<1300x1300xf64>
     return
   }
-  func @"p\F6\D8\02\00\00\00\00acobi_2d_new"(%arg0: i32, %arg1: i32, %arg2: memref<1300x1300xf64>, %arg3: memref<1300x1300xf64>) {
+  func @"P\D1\AE\02\00\00\00\00acobi_2d_new"(%arg0: i32, %arg1: i32, %arg2: memref<1300x1300xf64>, %arg3: memref<1300x1300xf64>) {
     %c0 = constant 0 : index
     %c1 = constant 1 : index
     %0 = index_cast %arg1 : i32 to index

@@ -32,7 +32,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %2 = alloc() : memref<160x160xf64>
     call @init_array(%c150_i32, %c140_i32, %c160_i32, %0, %2) : (i32, i32, i32, memref<150x140x160xf64>, memref<160x160xf64>) -> ()
     call @polybench_timer_start() : () -> ()
-    call @"P\F4\9D\01\00\00\00\00\10\E0t\01\00\00\00\00ew"(%c150_i32, %c140_i32, %c160_i32, %0, %2, %1) : (i32, i32, i32, memref<150x140x160xf64>, memref<160x160xf64>, memref<160xf64>) -> ()
+    call @"\E0\BD\A4\01\00\00\00\00\10\10\7F\01\00\00\00\00ew"(%c150_i32, %c140_i32, %c160_i32, %0, %2, %1) : (i32, i32, i32, memref<150x140x160xf64>, memref<160x160xf64>, memref<160xf64>) -> ()
     call @polybench_timer_stop() : () -> ()
     call @polybench_timer_print() : () -> ()
     %3 = cmpi "sgt", %arg0, %c42_i32 : i32
@@ -282,7 +282,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %0, %arg0[%arg1, %arg2, %arg3] : memref<150x140x160xf64>
     return
   }
-  func @"P\F4\9D\01\00\00\00\00\10\E0t\01\00\00\00\00ew"(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: memref<150x140x160xf64>, %arg4: memref<160x160xf64>, %arg5: memref<160xf64>) {
+  func @"\E0\BD\A4\01\00\00\00\00\10\10\7F\01\00\00\00\00ew"(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: memref<150x140x160xf64>, %arg4: memref<160x160xf64>, %arg5: memref<160xf64>) {
     %0 = index_cast %arg2 : i32 to index
     %1 = index_cast %arg1 : i32 to index
     %2 = index_cast %arg0 : i32 to index

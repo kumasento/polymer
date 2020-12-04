@@ -586,7 +586,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %9, %arg0[%arg1, %arg2] : memref<1300x1300xf64>
     return
   }
-  func @"\80\0FQ\02\00\00\00\00acobi_2d_new"(%arg0: i32, %arg1: i32, %arg2: memref<1300x1300xf64>, %arg3: memref<1300x1300xf64>) {
+  func @"\C0U\95\02\00\00\00\00acobi_2d_new"(%arg0: i32, %arg1: i32, %arg2: memref<1300x1300xf64>, %arg3: memref<1300x1300xf64>) {
     %c0 = constant 0 : index
     %c1 = constant 1 : index
     %0 = index_cast %arg1 : i32 to index
