@@ -315,7 +315,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %5, %arg0[%arg1] : memref<2000xf64>
     return
   }
-  func @kernel_jacobi_1d_new(%arg0: i32, %arg1: i32, %arg2: memref<2000xf64>, %arg3: memref<2000xf64>) {
+  func @"\00\00\00\00\00\00\00\00\10\C0\0C\03\00\00\00\00_new"(%arg0: i32, %arg1: i32, %arg2: memref<2000xf64>, %arg3: memref<2000xf64>) {
     %c0 = constant 0 : index
     %0 = index_cast %arg1 : i32 to index
     %1 = index_cast %arg0 : i32 to index

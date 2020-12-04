@@ -47,7 +47,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %0 = alloc() : memref<2000x2000xf64>
     call @init_array(%c2000_i32, %0) : (i32, memref<2000x2000xf64>) -> ()
     call @polybench_timer_start() : () -> ()
-    call @kernel_cholesky_new(%c2000_i32, %0) : (i32, memref<2000x2000xf64>) -> ()
+    call @"\F0\E2r\01\00\00\00\00holesky_new"(%c2000_i32, %0) : (i32, memref<2000x2000xf64>) -> ()
     call @polybench_timer_stop() : () -> ()
     call @polybench_timer_print() : () -> ()
     %1 = cmpi "sgt", %arg0, %c42_i32 : i32
@@ -345,7 +345,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %1, %arg0[%arg1, %arg1] : memref<2000x2000xf64>
     return
   }
-  func @kernel_cholesky_new(%arg0: i32, %arg1: memref<2000x2000xf64>) {
+  func @"\F0\E2r\01\00\00\00\00holesky_new"(%arg0: i32, %arg1: memref<2000x2000xf64>) {
     %0 = index_cast %arg0 : i32 to index
     affine.for %arg2 = 0 to #map1()[%0] {
       affine.for %arg3 = max #map2(%arg2)[%0] to #map3(%arg2) {

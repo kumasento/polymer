@@ -45,7 +45,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     call @polybench_timer_start() : () -> ()
     %7 = load %0[%c0] : memref<1xf64>
     %8 = load %1[%c0] : memref<1xf64>
-    call @kernel_syr2k_new(%c1200_i32, %c1000_i32, %7, %8, %2, %3, %4) : (i32, i32, f64, f64, memref<1200x1200xf64>, memref<1200x1000xf64>, memref<1200x1000xf64>) -> ()
+    call @" \10\A1\02\00\00\00\00\10\F0\83\02\00\00\00\00"(%c1200_i32, %c1000_i32, %7, %8, %2, %3, %4) : (i32, i32, f64, f64, memref<1200x1200xf64>, memref<1200x1000xf64>, memref<1200x1000xf64>) -> ()
     call @polybench_timer_stop() : () -> ()
     call @polybench_timer_print() : () -> ()
     %9 = cmpi "sgt", %arg0, %c42_i32 : i32
@@ -290,7 +290,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %10, %arg0[%arg1, %arg2] : memref<1200x1200xf64>
     return
   }
-  func @kernel_syr2k_new(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: f64, %arg4: memref<1200x1200xf64>, %arg5: memref<1200x1000xf64>, %arg6: memref<1200x1000xf64>) {
+  func @" \10\A1\02\00\00\00\00\10\F0\83\02\00\00\00\00"(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: f64, %arg4: memref<1200x1200xf64>, %arg5: memref<1200x1000xf64>, %arg6: memref<1200x1000xf64>) {
     %0 = index_cast %arg1 : i32 to index
     %1 = index_cast %arg0 : i32 to index
     affine.for %arg7 = 0 to #map1()[%1] {
