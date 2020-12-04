@@ -39,7 +39,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     call @polybench_timer_start() : () -> ()
     %9 = load %0[%c0] : memref<1xf64>
     %10 = load %1[%c0] : memref<1xf64>
-    call @kernel_gesummv(%c1300_i32, %9, %10, %2, %3, %4, %5, %6) : (i32, f64, f64, memref<1300x1300xf64>, memref<1300x1300xf64>, memref<1300xf64>, memref<1300xf64>, memref<1300xf64>) -> ()
+    call @"\90'X\02\00\00\00\00\100D\02\00\00\00\00ew"(%c1300_i32, %9, %10, %2, %3, %4, %5, %6) : (i32, f64, f64, memref<1300x1300xf64>, memref<1300x1300xf64>, memref<1300xf64>, memref<1300xf64>, memref<1300xf64>) -> ()
     call @polybench_timer_stop() : () -> ()
     call @polybench_timer_print() : () -> ()
     %11 = cmpi "sgt", %arg0, %c42_i32 : i32
@@ -272,7 +272,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %4, %arg0[%arg1] : memref<1300xf64>
     return
   }
-  func @kernel_gesummv_new(%arg0: i32, %arg1: f64, %arg2: f64, %arg3: memref<1300x1300xf64>, %arg4: memref<1300x1300xf64>, %arg5: memref<1300xf64>, %arg6: memref<1300xf64>, %arg7: memref<1300xf64>) {
+  func @"\90'X\02\00\00\00\00\100D\02\00\00\00\00ew"(%arg0: i32, %arg1: f64, %arg2: f64, %arg3: memref<1300x1300xf64>, %arg4: memref<1300x1300xf64>, %arg5: memref<1300xf64>, %arg6: memref<1300xf64>, %arg7: memref<1300xf64>) {
     %0 = index_cast %arg0 : i32 to index
     affine.for %arg8 = 0 to #map0()[%0] {
       affine.for %arg9 = #map1(%arg8) to min #map2(%arg8)[%0] {

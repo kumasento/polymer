@@ -31,7 +31,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %1 = alloc() : memref<2000xf64>
     call @init_array(%c2000_i32, %0) : (i32, memref<2000xf64>) -> ()
     call @polybench_timer_start() : () -> ()
-    call @kernel_durbin(%c2000_i32, %0, %1) : (i32, memref<2000xf64>, memref<2000xf64>) -> ()
+    call @"\F03\B7\01\00\00\00\00\10 \9A\01\00\00\00\00w"(%c2000_i32, %0, %1) : (i32, memref<2000xf64>, memref<2000xf64>) -> ()
     call @polybench_timer_stop() : () -> ()
     call @polybench_timer_print() : () -> ()
     %2 = cmpi "sgt", %arg0, %c42_i32 : i32
@@ -312,7 +312,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %11, %arg0[%arg1] : memref<2000xf64>
     return
   }
-  func @kernel_durbin_new(%arg0: i32, %arg1: memref<2000xf64>, %arg2: memref<2000xf64>) {
+  func @"\F03\B7\01\00\00\00\00\10 \9A\01\00\00\00\00w"(%arg0: i32, %arg1: memref<2000xf64>, %arg2: memref<2000xf64>) {
     %c0 = constant 0 : index
     %0 = alloca() : memref<2000xf64>
     %1 = alloca() : memref<1xf64>
