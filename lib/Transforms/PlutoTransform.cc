@@ -54,9 +54,9 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter) {
   context->options->isldep = 1;
   context->options->isldepaccesswise = 1;
   context->options->silent = 1;
-  context->options->intratileopt = 1;
+  context->options->intratileopt = 0;
   context->options->diamondtile = 1;
-  context->options->rar = 1;
+  context->options->rar = 0;
   context->options->iss = 0;
   context->options->identity = 0;
   context->options->tile = 1;
