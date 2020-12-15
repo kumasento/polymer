@@ -17,7 +17,7 @@ struct osl_statement;
 struct osl_generic;
 
 namespace mlir {
-class LogicalResult;
+struct LogicalResult;
 }
 
 namespace polymer {

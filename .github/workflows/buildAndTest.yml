@@ -70,7 +70,7 @@ jobs:
 
   # Build Polymer and run its tests.
   build-polymer:
-    name: Build and Test
+    name: Build and Test Polymer
     needs: build-llvm
     runs-on: ubuntu-20.04
     steps:
@@ -130,3 +130,27 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DLLVM_ENABLE_ASSERTIONS=ON
           cmake --build . --target install -- -j$(nproc)
+
+      # --------
+      # Build and test Polymer in both debug and release mode.
+      # --------
+
+      - name: Download submodules in Pluto
+        run: |
+          cd pluto
+          git submodule init
+          git submodule update
+
+      - name: Build and Test Polymer (Assert)
+        run: |
+          mkdir build_assert
+          cd build_assert
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DLLVM_ENABLE_ASSERTIONS=ON \
+            -DMLIR_DIR=${PWD}/../llvm/install/lib/cmake/mlir/ \
+            -DLLVM_DIR=${PWD}/../llvm/install/lib/cmake/llvm/ \
+            -DCMAKE_C_COMPILER=/bin/clang \
+            -DCMAKE_CXX_COMPILER=/bin/clang++ \
+            -DLLVM_EXTERNAL_LIT=${PWD}/../llvm/build/bin/llvm-lit \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
