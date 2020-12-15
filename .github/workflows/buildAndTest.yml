@@ -75,7 +75,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Configure Environment
-        run: echo "::add-path::$GITHUB_WORKSPACE/llvm/install/bin"
+        run: echo "${GITHUB_WORKSPACE}/llvm/install/bin" >> $GITHUB_PATH
 
       - name: Get dependences
         run: |
