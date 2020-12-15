@@ -154,3 +154,18 @@ jobs:
             -DCMAKE_CXX_COMPILER=/bin/clang++ \
             -DLLVM_EXTERNAL_LIT=${PWD}/../llvm/build/bin/llvm-lit \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          cmake --build . --target check-polymer
+
+      - name: Build and Test Polymer (Release)
+        run: |
+          mkdir build_release
+          cd build_release
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=RELEASE \
+            -DMLIR_DIR=${PWD}/../llvm/install/lib/cmake/mlir/ \
+            -DLLVM_DIR=${PWD}/../llvm/install/lib/cmake/llvm/ \
+            -DCMAKE_C_COMPILER=/bin/clang \
+            -DCMAKE_CXX_COMPILER=/bin/clang++ \
+            -DLLVM_EXTERNAL_LIT=${PWD}/../llvm/build/bin/llvm-lit \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          cmake --build . --target check-polymer
