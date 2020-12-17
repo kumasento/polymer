@@ -212,10 +212,13 @@ AffineExprBuilder::process(clast_binary *expr,
     affExpr = lhsAffExprs[0].floorDiv(rhsAffExpr);
     break;
   case clast_bin_cdiv:
+  case clast_bin_div:
     affExpr = lhsAffExprs[0].ceilDiv(rhsAffExpr);
     break;
+  case clast_bin_mod:
+    affExpr = lhsAffExprs[0] % rhsAffExpr;
+    break;
   default:
-    // TODO: bin/div are not handled.
     assert(false && "Unrecognized clast_binary type.\n");
     return failure();
   }
@@ -322,7 +325,7 @@ private:
 
   LogicalResult getAffineLoopBound(clast_expr *expr,
                                    llvm::SmallVectorImpl<mlir::Value> &operands,
-                                   AffineMap &affMap);
+                                   AffineMap &affMap, bool isUpper = false);
 
   LogicalResult parseUserStmtBody(llvm::StringRef body, std::string &calleeName,
                                   llvm::SmallVectorImpl<std::string> &args);
@@ -629,12 +632,18 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
 LogicalResult
 Importer::getAffineLoopBound(clast_expr *expr,
                              llvm::SmallVectorImpl<mlir::Value> &operands,
-                             AffineMap &affMap) {
+                             AffineMap &affMap, bool isUpper) {
   AffineExprBuilder builder(context, symTable, scop, options);
   SmallVector<AffineExpr, 4> boundExprs;
   // Build the AffineExpr for the loop bound.
   if (failed(builder.process(expr, boundExprs)))
     return failure();
+
+  // The upper bound given by Clast is closed, while affine.for needs an open
+  // bound. We go through every boundExpr here.
+  if (isUpper)
+    for (unsigned i = 0; i < boundExprs.size(); i++)
+      boundExprs[i] = boundExprs[i] + b.getAffineConstantExpr(1);
 
   // Insert dim operands.
   for (auto dimName : builder.dimNames) {
@@ -686,7 +695,8 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
          "reduction.");
 
   if (failed(getAffineLoopBound(forStmt->LB, lbOperands, lbMap)) ||
-      failed(getAffineLoopBound(forStmt->UB, ubOperands, ubMap)))
+      failed(
+          getAffineLoopBound(forStmt->UB, ubOperands, ubMap, /*isUpper=*/true)))
     return failure();
 
   int64_t stride = 1;
