@@ -161,16 +161,3 @@ jobs:
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
           LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PWD}/pluto/lib" cmake --build . --target check-polymer
 
-      - name: Build and Test Polymer (Release)
-        run: |
-          mkdir build_release
-          cd build_release
-          cmake .. \
-            -DCMAKE_BUILD_TYPE=RELEASE \
-            -DMLIR_DIR=${PWD}/../llvm/install/lib/cmake/mlir/ \
-            -DLLVM_DIR=${PWD}/../llvm/install/lib/cmake/llvm/ \
-            -DCMAKE_C_COMPILER=clang-9 \
-            -DCMAKE_CXX_COMPILER=clang++-9 \
-            -DLLVM_EXTERNAL_LIT=${PWD}/../llvm/build/bin/llvm-lit \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-          LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PWD}/pluto/lib" cmake --build . --target check-polymer
