@@ -557,6 +557,7 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
   b.setInsertionPoint(module.getBody(), getFuncInsertPt());
   FuncOp callee =
       b.create<FuncOp>(UnknownLoc::get(context), calleeName, calleeType);
+  callee.setVisibility(SymbolTable::Visibility::Private);
   calleeMap[calleeName] = callee;
 
   // Create the caller.
