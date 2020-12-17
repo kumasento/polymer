@@ -17,8 +17,6 @@ else()
   set(CLANG_PREFIX_CONFIG "")
 endif()
 
-message(STATUS ${CLANG_PREFIX_CONFIG})
-
 ExternalProject_Add(
   pluto 
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/pluto"

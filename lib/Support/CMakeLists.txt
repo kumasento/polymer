@@ -10,9 +10,6 @@ add_mlir_library(PolymerSupport
   MLIRAnalysis
   MLIRLoopAnalysis
 
-  # libosl
-  # libcloog
-  # libisl
   libplutoisl
   libplutoosl
   libplutopip
@@ -20,3 +17,5 @@ add_mlir_library(PolymerSupport
   libplutocandl
   libpluto
 )
+
+target_link_libraries(PolymerSupport PRIVATE ${GMP_LIBRARY})

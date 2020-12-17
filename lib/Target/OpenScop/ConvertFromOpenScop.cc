@@ -505,8 +505,8 @@ static LogicalResult buildIterToScatNameMap(
 /// will also generate the declaration of the function to be called, which has
 /// an empty body, in order to make the compiler happy.
 LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
-  osl_statement_p stmt;
-  if (failed(scop->getStatement(userStmt->statement->number - 1, &stmt)))
+  osl_statement_p stmt = scop->getStatement(userStmt->statement->number - 1);
+  if (!stmt)
     return failure();
 
   osl_body_p body = osl_statement_get_body(stmt);

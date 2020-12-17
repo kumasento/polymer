@@ -902,7 +902,7 @@ static LogicalResult emitOpenScop(ModuleOp module, llvm::raw_ostream &os) {
     return failure();
 
   for (auto &scop : scops)
-    scop->print();
+    scop->print(stdout);
 
   return success();
 }

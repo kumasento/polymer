@@ -12,6 +12,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Support/LogicalResult.h"
 
 #include <vector>
@@ -19,13 +20,11 @@
 using namespace polymer;
 using namespace mlir;
 
-namespace {
-
 /// Create osl_vector from a STL vector. Since the input vector is of type
 /// int64_t, we can safely assume the osl_vector we will generate has 64 bits
 /// precision. The input vector doesn't contain the e/i indicator.
-void getOslVector(bool isEq, llvm::ArrayRef<int64_t> vec,
-                  osl_vector_p *oslVec) {
+static void getOslVector(bool isEq, llvm::ArrayRef<int64_t> vec,
+                         osl_vector_p *oslVec) {
   *oslVec = osl_vector_pmalloc(64, vec.size() + 1);
 
   // Set the e/i field.
@@ -42,7 +41,7 @@ void getOslVector(bool isEq, llvm::ArrayRef<int64_t> vec,
 }
 
 /// Get the statement given by its index.
-osl_statement_p getOslStatement(osl_scop_p scop, unsigned index) {
+static osl_statement_p getOslStatement(osl_scop_p scop, unsigned index) {
   osl_statement_p stmt = scop->statement;
   for (unsigned i = 0; i <= index; i++) {
     // stmt accessed in the linked list before counting to index should not be
@@ -52,19 +51,46 @@ osl_statement_p getOslStatement(osl_scop_p scop, unsigned index) {
       return stmt;
     stmt = stmt->next;
   }
+  return nullptr;
 }
 
-} // namespace
+/// Get rows from the given FlatAffineConstraints data structure, which can be
+/// equalities or inequalities. The content in these rows should be organized in
+/// a row-major order.
+static void getConstraintRows(FlatAffineConstraints &cst,
+                              SmallVectorImpl<int64_t> &rows,
+                              bool isEq = true) {
+  unsigned numRows = isEq ? cst.getNumEqualities() : cst.getNumInequalities();
+  unsigned numDimIds = cst.getNumDimIds();
+  unsigned numLocalIds = cst.getNumLocalIds();
+  unsigned numSymbolIds = cst.getNumSymbolIds();
+
+  for (unsigned i = 0; i < numRows; i++) {
+    // Get the row based on isEq.
+    auto row = isEq ? cst.getEquality(i) : cst.getInequality(i);
+
+    unsigned numCols = row.size();
+    if (i == 0)
+      rows.resize(numRows * numCols);
+
+    // Dims stay at the same positions.
+    for (unsigned j = 0; j < numDimIds; j++)
+      rows[i * numCols + j] = row[j];
+    // Output local ids before symbols.
+    for (unsigned j = 0; j < numLocalIds; j++)
+      rows[i * numCols + j + numDimIds] = row[j + numDimIds + numSymbolIds];
+    // Output symbols in the end.
+    for (unsigned j = 0; j < numSymbolIds; j++)
+      rows[i * numCols + j + numDimIds + numLocalIds] = row[j + numDimIds];
+    // Finally outputs the constant.
+    rows[i * numCols + numCols - 1] = row[numCols - 1];
+  }
+}
 
 OslScop::OslScop()
-    : scop(std::move(osl_scop_unique_ptr{osl_scop_malloc(), osl_scop_free})) {
-  // Initialize string buffer for language.
-  char *language;
-  OSL_malloc(language, char *, 2);
-  OSL_strdup(language, "C");
-
-  scop->language = language;
-
+    : scop(osl_scop_unique_ptr{osl_scop_malloc(), osl_scop_free}) {
+  // Additional setup for the language and registry.
+  OSL_strdup(scop->language, "C");
   // Use the default interface registry
   osl_interface_p registry = osl_interface_get_default_registry();
   scop->registry = osl_interface_clone(registry);
@@ -72,9 +98,9 @@ OslScop::OslScop()
 
 OslScop::~OslScop() {}
 
-void OslScop::print() { osl_scop_print(stdout, scop.get()); }
+void OslScop::print(FILE *fp) const { osl_scop_print(fp, scop.get()); }
 
-bool OslScop::validate() {
+bool OslScop::validate() const {
   // TODO: do we need to check the scoplib compatibility?
   return osl_scop_integrity_check(scop.get());
 }
@@ -82,6 +108,22 @@ bool OslScop::validate() {
 void OslScop::createStatement() {
   osl_statement_p stmt = osl_statement_malloc();
   osl_statement_add(&(scop->statement), stmt);
+}
+
+osl_statement *OslScop::getStatement(unsigned index) const {
+  osl_statement_p curr = scop->statement;
+  if (!curr)
+    return nullptr;
+
+  for (unsigned i = 0; i < index; i++)
+    if (!(curr = curr->next))
+      return nullptr;
+
+  return curr;
+}
+
+unsigned OslScop::getNumStatements() const {
+  return osl_statement_number(scop->statement);
 }
 
 void OslScop::addRelation(int target, int type, int numRows, int numCols,
@@ -104,7 +146,7 @@ void OslScop::addRelation(int target, int type, int numRows, int numCols,
   assert(eqs.size() % numColsInEqs == 0 &&
          "Number of elements in the eqs should be an integer multiply if "
          "numColsInEqs\n");
-  size_t numEqs = eqs.size() / numColsInEqs;
+  int numEqs = eqs.size() / numColsInEqs;
 
   // Replace those allocated vector elements in rel.
   for (int i = 0; i < numRows; i++) {
@@ -146,6 +188,28 @@ void OslScop::addRelation(int target, int type, int numRows, int numCols,
       osl_relation_list_add(&(stmt->access), relList);
     }
   }
+}
+
+void OslScop::addContextRelation(FlatAffineConstraints cst) {
+  assert(cst.getNumDimIds() == 0 &&
+         "Context constraints shouldn't contain dim IDs.");
+  assert(cst.getNumSymbolIds() == 0 &&
+         "Context constraints shouldn't contain local IDs.");
+
+  SmallVector<int64_t, 8> eqs, inEqs;
+  getConstraintRows(cst, eqs);
+  getConstraintRows(cst, inEqs, /*isEq=*/false);
+
+  unsigned numCols = 2 + cst.getNumSymbolIds();
+  unsigned numEntries = inEqs.size() + eqs.size();
+  assert(numEntries % (numCols - 1) == 0 &&
+         "Total number of entries should be divisible by the number of columns "
+         "(excluding e/i)");
+
+  unsigned numRows = (inEqs.size() + eqs.size()) / (numCols - 1);
+  // Create the context relation.
+  addRelation(0, OSL_TYPE_CONTEXT, numRows, numCols, 0, 0, 0,
+              cst.getNumSymbolIds(), eqs, inEqs);
 }
 
 void OslScop::addGeneric(int target, llvm::StringRef tag,
@@ -198,26 +262,6 @@ bool OslScop::isSymbol(llvm::StringRef name) {
       return true;
 
   return false;
-}
-
-LogicalResult OslScop::getStatement(unsigned index, osl_statement **stmt) {
-  // TODO: cache all the statements.
-  osl_statement_p curr = scop->statement;
-  if (!curr)
-    return failure();
-
-  for (unsigned i = 0; i < index; i++) {
-    curr = curr->next;
-    if (!curr)
-      return failure();
-  }
-
-  *stmt = curr;
-  return success();
-}
-
-unsigned OslScop::getNumStatements() const {
-  return osl_statement_number(scop->statement);
 }
 
 osl_generic_p OslScop::getExtension(llvm::StringRef tag) const {

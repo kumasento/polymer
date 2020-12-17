@@ -16,7 +16,8 @@
 
 namespace mlir {
 struct LogicalResult;
-}
+class FlatAffineConstraints;
+} // namespace mlir
 
 namespace polymer {
 
@@ -32,8 +33,7 @@ public:
       std::unique_ptr<osl_scop_t, decltype(osl_scop_free) *>;
 
   OslScop();
-  OslScop(osl_scop *scop)
-      : scop(std::move(osl_scop_unique_ptr{scop, osl_scop_free})) {}
+  OslScop(osl_scop *scop) : scop(osl_scop_unique_ptr{scop, osl_scop_free}) {}
   OslScop(osl_scop_unique_ptr scop) : scop(std::move(scop)) {}
 
   OslScop(const OslScop &) = delete;
@@ -44,14 +44,19 @@ public:
   /// Get the raw scop pointer.
   osl_scop *get() { return scop.get(); }
 
-  /// Print the content of the Scop to the stdout.
-  void print();
+  /// Print the content of the Scop to the stdout. By default print to stderr.
+  void print(FILE *fp = stderr) const;
 
-  /// Validate whether the scop is well-formed.
-  bool validate();
+  /// Validate whether the scop is well-formed. This will call the
+  /// osl_scop_integrity_check function from OpenScop.
+  bool validate() const;
 
   /// Simply create a new statement in the linked list scop->statement.
   void createStatement();
+  /// Get statement by index.
+  osl_statement *getStatement(unsigned index) const;
+  /// Get the total number of statements
+  unsigned getNumStatements() const;
 
   /// Create a new relation and initialize its contents. The new relation will
   /// be created under the scop member.
@@ -64,18 +69,20 @@ public:
                    int numParams, llvm::ArrayRef<int64_t> eqs,
                    llvm::ArrayRef<int64_t> inEqs);
 
+  /// Add the relation defined by the context constraints (cst) to the context
+  /// of the current scop. The cst passed in should contain all the parameters
+  /// in all the domain relations. Also, the order of parameters in the cst
+  /// should be consistent with all the domain constraints. There shouldn't be
+  /// any dim or local IDs in the constraint, only symbol IDs (parameters) are
+  /// allowed.
+  void addContextRelation(mlir::FlatAffineConstraints cst);
+
   /// Add a new generic field to a statement. `target` gives the statement ID.
   /// `content` specifies the data field in the generic.
   void addGeneric(int target, llvm::StringRef tag, llvm::StringRef content);
 
   /// Check whether the name refers to a symbol.
   bool isSymbol(llvm::StringRef name);
-
-  /// Get statement by index.
-  mlir::LogicalResult getStatement(unsigned index, osl_statement **stmt);
-
-  /// Get the total number of statements
-  unsigned getNumStatements() const;
 
   /// Get extension by interface name
   osl_generic *getExtension(llvm::StringRef interface) const;
