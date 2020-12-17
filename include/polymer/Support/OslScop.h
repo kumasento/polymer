@@ -7,14 +7,12 @@
 #define POLYMER_SUPPORT_OSLSCOP_H
 
 #include "mlir/Support/LLVM.h"
+#include "osl/osl.h"
 
 #include <cassert>
 #include <cstdint>
+#include <memory>
 #include <vector>
-
-struct osl_scop;
-struct osl_statement;
-struct osl_generic;
 
 namespace mlir {
 struct LogicalResult;
@@ -22,16 +20,29 @@ struct LogicalResult;
 
 namespace polymer {
 
-/// A wrapper for the osl_scop struct in the openscop library.
+/// A wrapper for the osl_scop struct in the openscop library. It mainly
+/// provides functionalities for accessing the contents in a osl_scop, and
+/// the methods for adding new relations. It also holds a symbol table that maps
+/// between a symbol in the OpenScop representation and a Value in the original
+/// MLIR input. It manages the life-cycle of the osl_scop object passed in
+/// through unique_ptr.
 class OslScop {
 public:
+  using osl_scop_unique_ptr =
+      std::unique_ptr<osl_scop_t, decltype(osl_scop_free) *>;
+
   OslScop();
-  OslScop(osl_scop *scop) : scop(scop) {}
+  OslScop(osl_scop *scop)
+      : scop(std::move(osl_scop_unique_ptr{scop, osl_scop_free})) {}
+  OslScop(osl_scop_unique_ptr scop) : scop(std::move(scop)) {}
+
+  OslScop(const OslScop &) = delete;
+  OslScop &operator=(const OslScop &) = delete;
 
   ~OslScop();
 
   /// Get the raw scop pointer.
-  osl_scop *get() { return scop; }
+  osl_scop *get() { return scop.get(); }
 
   /// Print the content of the Scop to the stdout.
   void print();
@@ -70,7 +81,7 @@ public:
   osl_generic *getExtension(llvm::StringRef interface) const;
 
 private:
-  osl_scop *scop;
+  osl_scop_unique_ptr scop;
 };
 
 } // namespace polymer

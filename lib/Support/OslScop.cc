@@ -56,9 +56,8 @@ osl_statement_p getOslStatement(osl_scop_p scop, unsigned index) {
 
 } // namespace
 
-OslScop::OslScop() {
-  scop = osl_scop_malloc();
-
+OslScop::OslScop()
+    : scop(std::move(osl_scop_unique_ptr{osl_scop_malloc(), osl_scop_free})) {
   // Initialize string buffer for language.
   char *language;
   OSL_malloc(language, char *, 2);
@@ -71,13 +70,13 @@ OslScop::OslScop() {
   scop->registry = osl_interface_clone(registry);
 }
 
-OslScop::~OslScop() { osl_scop_free(scop); }
+OslScop::~OslScop() {}
 
-void OslScop::print() { osl_scop_print(stdout, scop); }
+void OslScop::print() { osl_scop_print(stdout, scop.get()); }
 
 bool OslScop::validate() {
   // TODO: do we need to check the scoplib compatibility?
-  return osl_scop_integrity_check(scop);
+  return osl_scop_integrity_check(scop.get());
 }
 
 void OslScop::createStatement() {
@@ -132,7 +131,7 @@ void OslScop::addRelation(int target, int type, int numRows, int numCols,
     scop->context = rel;
   } else {
     // Get the pointer to the statement.
-    osl_statement_p stmt = getOslStatement(scop, target - 1);
+    osl_statement_p stmt = getOslStatement(scop.get(), target - 1);
 
     // Depending on the type of the relation, we decide which field of the
     // statement we should set.
@@ -172,7 +171,7 @@ void OslScop::addGeneric(int target, llvm::StringRef tag,
     osl_generic_add(&(scop->parameters), generic);
   } else {
     // Add to statement.
-    osl_statement_p stmt = getOslStatement(scop, target - 1);
+    osl_statement_p stmt = getOslStatement(scop.get(), target - 1);
     osl_generic_add(&(stmt->extension), generic);
   }
 }
