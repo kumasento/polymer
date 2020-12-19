@@ -28,10 +28,9 @@
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dominance.h"
-#include "mlir/IR/Function.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Module.h"
+// #include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Transforms/LoopUtils.h"
 #include "mlir/Transforms/Utils.h"
@@ -234,7 +233,7 @@ AffineExprBuilder::process(clast_binary *expr,
     affExpr = lhsAffExprs[0].floorDiv(rhsAffExpr);
     break;
   case clast_bin_cdiv:
-  case clast_bin_div: // TODO: check out this
+  case clast_bin_div:
     affExpr = lhsAffExprs[0].ceilDiv(rhsAffExpr);
     break;
   case clast_bin_mod:

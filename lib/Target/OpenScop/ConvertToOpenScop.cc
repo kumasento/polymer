@@ -22,8 +22,6 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Function.h"
-#include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Transforms/LoopUtils.h"
@@ -155,7 +153,7 @@ void OslScopBuilder::buildScopStmtMap(mlir::FuncOp f,
 
   f.walk([&](mlir::Operation *op) {
     if (mlir::CallOp caller = dyn_cast<mlir::CallOp>(op)) {
-      llvm::StringRef calleeName = caller.getCallee();
+      std::string calleeName(caller.getCallee());
       mlir::FuncOp callee = m.lookupSymbol<mlir::FuncOp>(calleeName);
 
       // If the callee is of scop.stmt, we create a new instance in the map
