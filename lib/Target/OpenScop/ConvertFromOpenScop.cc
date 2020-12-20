@@ -1527,10 +1527,9 @@ static void transformClastByPlutoProg(clast_stmt *root, const PlutoProg *prog,
     unrollJamClastByPlutoProg(root, prog, cloogOptions, plutoOptions->ufactor);
 }
 
-mlir::Operation *
-polymer::createFuncOpFromOpenScop(std::unique_ptr<OslScop> scop,
-                                  ModuleOp module, OslSymbolTable &symTable,
-                                  MLIRContext *context, PlutoProg *prog) {
+mlir::Operation *polymer::createFuncOpFromOpenScop(
+    std::unique_ptr<OslScop> scop, ModuleOp module, OslSymbolTable &symTable,
+    MLIRContext *context, PlutoProg *prog, const char *dumpClastAfterPluto) {
   // TODO: turn these C struct into C++ classes.
   CloogState *state = cloog_state_malloc();
   CloogOptions *options = cloog_options_malloc(state);
@@ -1550,10 +1549,20 @@ polymer::createFuncOpFromOpenScop(std::unique_ptr<OslScop> scop,
 
   // Convert to clast
   clast_stmt *rootStmt = cloog_clast_create(program, options);
-  clast_pprint(stderr, rootStmt, 0, options);
-
   if (prog != nullptr)
     transformClastByPlutoProg(rootStmt, prog, options, prog->context->options);
+
+  FILE *clastPrintFile = stderr;
+  if (dumpClastAfterPluto) {
+    clastPrintFile = fopen(dumpClastAfterPluto, "w");
+    assert(clastPrintFile &&
+           "File for clast dump after Pluto cannot be opened.");
+  }
+
+  clast_pprint(clastPrintFile, rootStmt, 0, options);
+
+  if (dumpClastAfterPluto)
+    fclose(clastPrintFile);
 
   // Process the input.
   Importer deserializer(context, module, &symTable, scop.get(), options);
