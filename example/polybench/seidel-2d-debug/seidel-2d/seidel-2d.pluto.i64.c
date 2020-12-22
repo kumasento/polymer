@@ -80,7 +80,7 @@ void kernel_seidel_2d(int tsteps,
   int t, i, j;
 
   long long t1, t2, t3, t4, t5, t6;
- register int lbv, ubv;
+ register long long lbv, ubv;
 if ((_PB_N >= 3) && (_PB_TSTEPS >= 1)) {
   for (t1=0;t1<=floord(_PB_TSTEPS-1,32);t1++) {
     for (t2=t1;t2<=min(floord(_PB_TSTEPS+_PB_N-3,32),floord(32*t1+_PB_N+29,32));t2++) {
