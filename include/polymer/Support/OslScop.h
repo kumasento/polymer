@@ -6,6 +6,8 @@
 #ifndef POLYMER_SUPPORT_OSLSCOP_H
 #define POLYMER_SUPPORT_OSLSCOP_H
 
+#include "polymer/Support/ScatUtils.h"
+
 #include "mlir/Support/LLVM.h"
 #include "osl/osl.h"
 
@@ -17,6 +19,7 @@
 namespace mlir {
 struct LogicalResult;
 class FlatAffineConstraints;
+class Operation;
 } // namespace mlir
 
 namespace polymer {
@@ -33,8 +36,11 @@ public:
       std::unique_ptr<osl_scop_t, decltype(osl_scop_free) *>;
 
   OslScop();
-  OslScop(osl_scop *scop) : scop(osl_scop_unique_ptr{scop, osl_scop_free}) {}
-  OslScop(osl_scop_unique_ptr scop) : scop(std::move(scop)) {}
+  OslScop(osl_scop *scop)
+      : scop(osl_scop_unique_ptr{scop, osl_scop_free}),
+        scatTreeRoot(std::make_unique<ScatTreeNode>()) {}
+  OslScop(osl_scop_unique_ptr scop)
+      : scop(std::move(scop)), scatTreeRoot(std::make_unique<ScatTreeNode>()) {}
 
   OslScop(const OslScop &) = delete;
   OslScop &operator=(const OslScop &) = delete;
@@ -75,7 +81,19 @@ public:
   /// should be consistent with all the domain constraints. There shouldn't be
   /// any dim or local IDs in the constraint, only symbol IDs (parameters) are
   /// allowed.
-  void addContextRelation(mlir::FlatAffineConstraints cst);
+  void addContextRelation(const mlir::FlatAffineConstraints &cst);
+
+  /// Add the domain relation to the statement denoted by ID. We don't do any
+  /// additional validation in this function. We simply get the flattened array
+  /// of equalities and inequalities from the cst and add it to the target
+  /// statement. stmtId starts from 0.
+  void addDomainRelation(int stmtId, const mlir::FlatAffineConstraints &cst);
+
+  /// Add the scattering relation to the target statement (given by stmtId). cst
+  /// is the domain of the statement that this scattering relation is added to.
+  /// ops are the enclosing affine.for of the current statement.
+  void addScatteringRelation(int stmtId, const mlir::FlatAffineConstraints &cst,
+                             llvm::ArrayRef<mlir::Operation *> ops);
 
   /// Add a new generic field to a statement. `target` gives the statement ID.
   /// `content` specifies the data field in the generic.
@@ -88,7 +106,10 @@ public:
   osl_generic *getExtension(llvm::StringRef interface) const;
 
 private:
+  /// The osl_scop object being managed.
   osl_scop_unique_ptr scop;
+  /// Root to the scattering tree.
+  std::unique_ptr<ScatTreeNode> scatTreeRoot;
 };
 
 } // namespace polymer

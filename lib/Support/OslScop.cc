@@ -5,6 +5,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "polymer/Support/OslScop.h"
+#include "polymer/Support/ScatUtils.h"
 
 #include "osl/osl.h"
 
@@ -57,7 +58,7 @@ static osl_statement_p getOslStatement(osl_scop_p scop, unsigned index) {
 /// Get rows from the given FlatAffineConstraints data structure, which can be
 /// equalities or inequalities. The content in these rows should be organized in
 /// a row-major order.
-static void getConstraintRows(FlatAffineConstraints &cst,
+static void getConstraintRows(const FlatAffineConstraints &cst,
                               SmallVectorImpl<int64_t> &rows,
                               bool isEq = true) {
   unsigned numRows = isEq ? cst.getNumEqualities() : cst.getNumInequalities();
@@ -88,7 +89,9 @@ static void getConstraintRows(FlatAffineConstraints &cst,
 }
 
 OslScop::OslScop()
-    : scop(osl_scop_unique_ptr{osl_scop_malloc(), osl_scop_free}) {
+    : scop(osl_scop_unique_ptr{osl_scop_malloc(), osl_scop_free}),
+      scatTreeRoot(std::make_unique<ScatTreeNode>()) {
+
   // Additional setup for the language and registry.
   OSL_strdup(scop->language, "C");
   // Use the default interface registry
@@ -164,6 +167,9 @@ void OslScop::addRelation(int target, int type, int numRows, int numCols,
     // Replace the vector content of the i-th row by the contents in
     // constraints.
     osl_relation_replace_vector(rel, vec, i);
+
+    // Free the newly allocated vector
+    osl_vector_free(vec);
   }
 
   // Append the newly created relation to a target linked list, or simply set it
@@ -190,7 +196,7 @@ void OslScop::addRelation(int target, int type, int numRows, int numCols,
   }
 }
 
-void OslScop::addContextRelation(FlatAffineConstraints cst) {
+void OslScop::addContextRelation(const FlatAffineConstraints &cst) {
   assert(cst.getNumDimIds() == 0 &&
          "Context constraints shouldn't contain dim IDs.");
   assert(cst.getNumSymbolIds() == 0 &&
@@ -209,6 +215,63 @@ void OslScop::addContextRelation(FlatAffineConstraints cst) {
   unsigned numRows = (inEqs.size() + eqs.size()) / (numCols - 1);
   // Create the context relation.
   addRelation(0, OSL_TYPE_CONTEXT, numRows, numCols, 0, 0, 0,
+              cst.getNumSymbolIds(), eqs, inEqs);
+}
+
+void OslScop::addDomainRelation(int stmtId, const FlatAffineConstraints &cst) {
+  SmallVector<int64_t, 8> eqs, inEqs;
+  getConstraintRows(cst, eqs);
+  getConstraintRows(cst, inEqs, /*isEq=*/false);
+
+  addRelation(stmtId + 1, OSL_TYPE_DOMAIN, cst.getNumConstraints(),
+              cst.getNumCols() + 1, cst.getNumDimIds(), 0, cst.getNumLocalIds(),
+              cst.getNumSymbolIds(), eqs, inEqs);
+}
+
+void OslScop::addScatteringRelation(int stmtId,
+                                    const mlir::FlatAffineConstraints &cst,
+                                    llvm::ArrayRef<mlir::Operation *> ops) {
+  // First insert the enclosing ops into the scat tree.
+  SmallVector<unsigned, 8> scats;
+  scatTreeRoot->insertScopStmt(ops, scats);
+
+  // Elements (N of them) in `scattering` are constants, and there are IVs
+  // interleaved them. Therefore, we have 2N - 1 number of scattering
+  // equalities.
+  unsigned numScatEqs = scats.size() * 2 - 1;
+  // Columns include new scattering dimensions and those from the domain.
+  unsigned numScatCols = numScatEqs + cst.getNumCols() + 1;
+
+  // Create equalities and inequalities.
+  std::vector<int64_t> eqs, inEqs;
+
+  // Initialize contents for equalities.
+  eqs.resize(numScatEqs * (numScatCols - 1));
+  for (unsigned j = 0; j < numScatEqs; j++) {
+
+    // Initializing scattering dimensions by setting the diagonal to -1.
+    for (unsigned k = 0; k < numScatEqs; k++)
+      eqs[j * (numScatCols - 1) + k] = -static_cast<int64_t>(k == j);
+
+    // Relating the loop IVs to the scattering dimensions. If it's the odd
+    // equality, set its scattering dimension to the loop IV; otherwise, it's
+    // scattering dimension will be set in the following constant section.
+    for (unsigned k = 0; k < cst.getNumDimIds(); k++)
+      eqs[j * (numScatCols - 1) + k + numScatEqs] =
+          (j % 2) ? (k == (j / 2)) : 0;
+
+    // TODO: consider the parameters that may appear in the scattering
+    // dimension.
+    for (unsigned k = 0; k < cst.getNumLocalIds() + cst.getNumSymbolIds(); k++)
+      eqs[j * (numScatCols - 1) + k + numScatEqs + cst.getNumDimIds()] = 0;
+
+    // Relating the constants (the last column) to the scattering dimensions.
+    eqs[j * (numScatCols - 1) + numScatCols - 2] = (j % 2) ? 0 : scats[j / 2];
+  }
+
+  // Then put them into the scop as a SCATTERING relation.
+  addRelation(stmtId + 1, OSL_TYPE_SCATTERING, numScatEqs, numScatCols,
+              numScatEqs, cst.getNumDimIds(), cst.getNumLocalIds(),
               cst.getNumSymbolIds(), eqs, inEqs);
 }
 

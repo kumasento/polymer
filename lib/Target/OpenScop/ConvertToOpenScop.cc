@@ -235,13 +235,13 @@ static void addDomainToScop(unsigned index, FlatAffineConstraints &domain,
 namespace {
 /// Tree that holds scattering information. This node can represent an induction
 /// variable or a statement. A statement is constructed as a leaf node.
-class ScatTreeNode {
+class ScatTreeNode_ {
 public:
-  ScatTreeNode() {}
-  ScatTreeNode(mlir::Value iv) : iv(iv) {}
+  ScatTreeNode_() {}
+  ScatTreeNode_(mlir::Value iv) : iv(iv) {}
 
   /// Children of the current node.
-  std::vector<std::unique_ptr<ScatTreeNode>> children;
+  std::vector<std::unique_ptr<ScatTreeNode_>> children;
 
   /// Mapping from IV to child ID.
   llvm::DenseMap<mlir::Value, unsigned> valueIdMap;
@@ -252,10 +252,10 @@ public:
 } // namespace
 
 // Get the depth of the tree starting from the given root node.
-static unsigned getDepth(ScatTreeNode *root) {
+static unsigned getDepth(ScatTreeNode_ *root) {
   assert(root && "The root node should not be NULL.");
 
-  llvm::SmallVector<std::pair<ScatTreeNode *, unsigned>, 8> nodes;
+  llvm::SmallVector<std::pair<ScatTreeNode_ *, unsigned>, 8> nodes;
   nodes.push_back(std::make_pair(root, 1));
   unsigned maxDepth = 1;
 
@@ -278,10 +278,10 @@ static unsigned getDepth(ScatTreeNode *root) {
 /// After that, we insert the current load/store statement into the tree as a
 /// leaf. In this progress, we keep track of all the IDs of each child we meet
 /// and the final leaf node, which will be used as the scattering.
-static void insertStatement(ScatTreeNode *root,
+static void insertStatement(ScatTreeNode_ *root,
                             ArrayRef<Operation *> enclosingOps,
                             SmallVectorImpl<unsigned> &scattering) {
-  ScatTreeNode *curr = root;
+  ScatTreeNode_ *curr = root;
 
   for (unsigned i = 0, e = enclosingOps.size(); i < e; i++) {
     Operation *op = enclosingOps[i];
@@ -300,7 +300,7 @@ static void insertStatement(ScatTreeNode *root,
           curr = curr->children[it->second].get();
         } else {
           // No existing node for such IV is found, create a new one.
-          auto node = std::make_unique<ScatTreeNode>(iv);
+          auto node = std::make_unique<ScatTreeNode_>(iv);
 
           // Then insert the newly created node into the children set, update
           // the value to child ID map, and move the cursor to this new node.
@@ -315,7 +315,7 @@ static void insertStatement(ScatTreeNode *root,
   }
 
   // Append the leaf node for statement
-  auto leaf = std::make_unique<ScatTreeNode>();
+  auto leaf = std::make_unique<ScatTreeNode_>();
   curr->children.push_back(std::move(leaf));
   scattering.push_back(curr->children.size() - 1);
 }
@@ -735,7 +735,7 @@ polymer::createOpenScopFromFuncOp(mlir::FuncOp funcOp,
   std::vector<FlatAffineConstraints> domains(numStatements);
 
   // Create the root tree node.
-  ScatTreeNode root;
+  ScatTreeNode_ root;
   // Maintain the identifiers of memref objects
   MemRefToId memrefIdMap;
   // Maintain the mapping from the parameter Value and its numbering.
