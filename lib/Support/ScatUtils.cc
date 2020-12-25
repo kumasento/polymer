@@ -191,12 +191,17 @@ void ScatTreeNode::insertScopStmt(llvm::ArrayRef<mlir::Operation *> ops,
   insertStatement(impl.get(), ops, scats);
 }
 
-void ScatTreeNode::insertOperation(mlir::Operation *op,
-                                   llvm::SmallVectorImpl<unsigned> &scats) {
-  llvm::SmallVector<mlir::Value, 4> ivs;
+void ScatTreeNode::insertPath(mlir::Operation *op,
+                              llvm::SmallVectorImpl<unsigned> &scats) {
   llvm::SmallVector<mlir::Operation *, 8> enclosingOps;
-
   getEnclosingAffineForAndIfOps(*op, &enclosingOps);
+
+  insertPath(enclosingOps, scats);
+}
+
+void ScatTreeNode::insertPath(llvm::ArrayRef<mlir::Operation *> enclosingOps,
+                              llvm::SmallVectorImpl<unsigned> &scats) {
+  llvm::SmallVector<mlir::Value, 4> ivs;
   for (mlir::Operation *op : enclosingOps)
     if (mlir::AffineForOp forOp = dyn_cast<mlir::AffineForOp>(op))
       ivs.push_back(forOp.getInductionVar());

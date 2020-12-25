@@ -42,10 +42,12 @@ struct TestScatTreePass : PassWrapper<TestScatTreePass, FunctionPass> {
         return;
 
       llvm::SmallVector<unsigned, 8> scats;
-      root.insertOperation(op, scats);
+      root.insertPath(op, scats);
 
       op->emitRemark("Scats: ") << getScatsString(scats);
     });
+
+    f->emitRemark("Tree depth: ") << root.getDepth();
   }
 };
 } // namespace

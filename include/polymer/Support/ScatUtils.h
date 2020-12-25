@@ -46,8 +46,14 @@ public:
   unsigned getDepth() const;
 
   /// Insert one operation into the scat tree based on its enclosing affine.for.
-  void insertOperation(mlir::Operation *op,
-                       llvm::SmallVectorImpl<unsigned> &scats);
+  void insertPath(mlir::Operation *op, llvm::SmallVectorImpl<unsigned> &scats);
+
+  /// Insert a path of nodes into the scat tree based on the provided enclosing
+  /// operations. We first extract all the induction variables from the
+  /// affine.for provided in the given list of operations, then call the
+  /// insertPath method.
+  void insertPath(llvm::ArrayRef<mlir::Operation *> enclosingOps,
+                  llvm::SmallVectorImpl<unsigned> &scats);
 
 private:
   std::unique_ptr<ScatTreeNodeImpl> impl;

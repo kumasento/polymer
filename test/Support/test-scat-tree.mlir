@@ -2,6 +2,7 @@
 
 // CHECK-LABEL: func @no_affine_for()
 func @no_affine_for() -> i32 {
+// expected-remark@above {{Tree depth: 2}}
   %c0 = constant 0 : i32
   // expected-remark@above {{Scats: { 0 }}}
   return %c0: i32
@@ -12,6 +13,7 @@ func @no_affine_for() -> i32 {
 
 // CHECK-LABEL: func @single_affine_for
 func @single_affine_for() {
+// expected-remark@above {{Tree depth: 3}}
   %A = alloc() : memref<10xf32>
   // expected-remark@above {{Scats: { 0 }}}
   affine.for %i = 0 to 10 {
@@ -30,6 +32,7 @@ func @single_affine_for() {
 
 // CHECK-LABEL: func @nested_affine_for
 func @nested_affine_for() {
+// expected-remark@above {{Tree depth: 5}}
   %A = alloc() : memref<64x64xf32>
   // expected-remark@above {{Scats: { 0 }}}
   %B = alloc() : memref<64x64xf32>
@@ -63,6 +66,7 @@ func @nested_affine_for() {
 
 // CHECK-LABEL: func @imperfectly_nested_affine_for
 func @imperfectly_nested_affine_for(%alpha: f32) {
+// expected-remark@above {{Tree depth: 5}}
   %A = alloc() : memref<64x64xf32>
   // expected-remark@above {{Scats: { 0 }}}
   %B = alloc() : memref<64x64xf32>
