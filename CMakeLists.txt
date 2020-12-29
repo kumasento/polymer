@@ -48,7 +48,7 @@ include_directories("${PLUTO_INCLUDE_DIR}")
 
 # ------------------------------------------------- This project
 set(POLYMER_MAIN_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include" ) # --src-root
-set(POLYMER_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/include" ) # --includedir
+set(POLYMER_MAIN_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/include" ) # --includedir
 
 set(POLYMER_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 set(POLYMER_BINARY_DIR "${CMAKE_BINARY_DIR}/bin")
