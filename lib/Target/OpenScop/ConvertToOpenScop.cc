@@ -6,6 +6,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "polymer/Support/OslScop.h"
+#include "polymer/Support/OslScopBuilder.h"
 #include "polymer/Support/OslScopStmtOpSet.h"
 #include "polymer/Support/OslSymbolTable.h"
 #include "polymer/Target/OpenScop.h"
@@ -43,6 +44,8 @@ using namespace llvm;
 using namespace polymer;
 
 #define DEBUG_TYPE "emit-openscop"
+
+namespace {} // namespace
 
 typedef llvm::DenseMap<mlir::Value, unsigned> MemRefToId;
 
@@ -710,6 +713,7 @@ static LogicalResult getDefOps(Operation *op, OslScopStmtOpSet &defOps) {
 std::unique_ptr<OslScop>
 polymer::createOpenScopFromFuncOp(mlir::FuncOp funcOp,
                                   OslSymbolTable &symTable) {
+  OslScopBuilder().build(funcOp);
   // Initialize a new Scop per FuncOp.
   auto scop = std::make_unique<OslScop>();
 

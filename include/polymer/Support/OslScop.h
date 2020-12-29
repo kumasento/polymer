@@ -7,8 +7,8 @@
 #define POLYMER_SUPPORT_OSLSCOP_H
 
 #include "polymer/Support/ScatUtils.h"
+#include "polymer/Support/ScopStmt.h"
 
-#include "mlir/Support/LLVM.h"
 #include "osl/osl.h"
 
 #include <cassert>
@@ -16,10 +16,16 @@
 #include <memory>
 #include <vector>
 
+#include "mlir/Support/LLVM.h"
+
+#include "llvm/ADT/StringMap.h"
+
 namespace mlir {
 struct LogicalResult;
 class FlatAffineConstraints;
+class Value;
 class Operation;
+class AffineValueMap;
 } // namespace mlir
 
 namespace polymer {
@@ -32,9 +38,25 @@ namespace polymer {
 /// through unique_ptr.
 class OslScop {
 public:
+  using SymbolTable = llvm::StringMap<mlir::Value>;
+  using ScopStmtMap = llvm::StringMap<ScopStmt>;
   using osl_scop_unique_ptr =
       std::unique_ptr<osl_scop_t, decltype(osl_scop_free) *>;
 
+  enum SymbolType { MEMREF, INDVAR, PARAMETER, CONSTANT };
+
+private:
+  /// The osl_scop object being managed.
+  osl_scop_unique_ptr scop;
+  /// The symbol table that maps from symbols in the OpenScop (e.g., scatnames,
+  /// array), to the corresponding mlir::Value.
+  SymbolTable symbolTable;
+  /// Root to the scattering tree.
+  std::unique_ptr<ScatTreeNode> scatTreeRoot;
+  /// Mapping between ScopStmts and their symbols.
+  ScopStmtMap scopStmtMap;
+
+public:
   OslScop();
   OslScop(osl_scop *scop)
       : scop(osl_scop_unique_ptr{scop, osl_scop_free}),
@@ -57,19 +79,25 @@ public:
   /// osl_scop_integrity_check function from OpenScop.
   bool validate() const;
 
+  /// ------------------------- ScopStmtMap ------------------------------------
+
+  /// Return a const reference to the internal scopStmtMap data.
+  const ScopStmtMap &getScopStmtMap() const;
+
+  /// ------------------------- Statements -------------------------------------
+
   /// Simply create a new statement in the linked list scop->statement.
-  void createStatement();
+  osl_statement *createStatement();
+
   /// Get statement by index.
   osl_statement *getStatement(unsigned index) const;
+
   /// Get the total number of statements
   unsigned getNumStatements() const;
 
-  /// Create a new relation and initialize its contents. The new relation will
-  /// be created under the scop member.
-  /// The target here is an index:
-  /// 1) if it's 0, then it means the context;
-  /// 2) otherwise, if it is a positive number, it corresponds to a statement of
-  /// id=(target-1).
+  /// ------------------------- Relations -------------------------------------
+
+  /// TODO: Should remove this.
   void addRelation(int target, int type, int numRows, int numCols,
                    int numOutputDims, int numInputDims, int numLocalDims,
                    int numParams, llvm::ArrayRef<int64_t> eqs,
@@ -95,21 +123,66 @@ public:
   void addScatteringRelation(int stmtId, const mlir::FlatAffineConstraints &cst,
                              llvm::ArrayRef<mlir::Operation *> ops);
 
-  /// Add a new generic field to a statement. `target` gives the statement ID.
-  /// `content` specifies the data field in the generic.
+  /// Add the access relation to the target statement (given by stmtId).
+  void addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
+                         mlir::AffineValueMap &vMap,
+                         mlir::FlatAffineConstraints &cst);
+
+  /// ------------------------- Extensions ------------------------------------
+
+  /// TODO: Should remove this soon.
   void addGeneric(int target, llvm::StringRef tag, llvm::StringRef content);
+
+  /// Add an extension generic content to the whole osl_scop. tag specifies what
+  /// the generic type is.
+  void addExtensionGeneric(llvm::StringRef tag, llvm::StringRef content);
+
+  /// Add a  generic content to the beginning of the whole osl_scop. tag
+  /// specifies the type of the extension. The content has a space separated
+  /// list of parameter names.
+  void addParametersGeneric(llvm::StringRef tag, llvm::StringRef content);
+
+  /// Add a generic to a single statement, which can be <body>, for example. tag
+  /// specifies what the generic type is.
+  void addStatementGeneric(int stmtId, llvm::StringRef tag,
+                           llvm::StringRef content);
 
   /// Check whether the name refers to a symbol.
   bool isSymbol(llvm::StringRef name);
 
-  /// Get extension by interface name
-  osl_generic *getExtension(llvm::StringRef interface) const;
+  /// Get extension by the tag name. tag can be strings like "body", "array",
+  /// etc. This function goes through the whole scop to find is there an
+  /// extension that matches the tag.
+  osl_generic *getExtension(llvm::StringRef tag) const;
 
-private:
-  /// The osl_scop object being managed.
-  osl_scop_unique_ptr scop;
-  /// Root to the scattering tree.
-  std::unique_ptr<ScatTreeNode> scatTreeRoot;
+  /// Add parameter names to the <strings> extension of scop->parameters from
+  /// the symbol table.
+  void addParameterNamesFromSymbolTable();
+
+  /// Create strings based on the depth of the scat tree and add them
+  /// to the <scatnames> extension.
+  void addScatnamesExtensionFromScatTree();
+
+  /// Create the <arrays> extension from the symbol table.
+  void addArraysExtensionFromSymbolTable();
+
+  /// Add the <body> extension content from the given ScopStmt object.
+  void addBodyExtension(int stmtId, const ScopStmt &stmt);
+
+  /// ------------------------- Symbol Table ----------------------------------
+
+  /// Find the symbol for the given Value. Return an empty symbol if not found.
+  llvm::StringRef getOrCreateSymbol(mlir::Value value);
+
+  /// Get the symbol prefix ('A', 'i', 'P', etc.) based on the symbol type.
+  llvm::StringRef getSymbolPrefix(SymbolType type) const;
+  /// Get the symbol prefix ('A', 'i', 'P', etc.) based on the value type.
+  llvm::StringRef getSymbolPrefix(mlir::Value value) const;
+
+  /// Get the symbol type based on the symbol content.
+  SymbolType getSymbolType(llvm::StringRef symbol) const;
+  /// Get the symbol type based on the MLIR value.
+  SymbolType getSymbolType(mlir::Value value) const;
 };
 
 } // namespace polymer
