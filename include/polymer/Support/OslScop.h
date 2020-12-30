@@ -26,6 +26,8 @@ class FlatAffineConstraints;
 class Value;
 class Operation;
 class AffineValueMap;
+class CallOp;
+class FuncOp;
 } // namespace mlir
 
 namespace polymer {
@@ -43,6 +45,8 @@ public:
   using osl_scop_unique_ptr =
       std::unique_ptr<osl_scop_t, decltype(osl_scop_free) *>;
 
+  static constexpr const char *const SCOP_STMT_ATTR_NAME = "scop.stmt";
+
   enum SymbolType { MEMREF, INDVAR, PARAMETER, CONSTANT };
 
 private:
@@ -55,6 +59,8 @@ private:
   std::unique_ptr<ScatTreeNode> scatTreeRoot;
   /// Mapping between ScopStmts and their symbols.
   ScopStmtMap scopStmtMap;
+  /// Keep the ScopStmt symbols in their discovery order.
+  llvm::SmallVector<llvm::StringRef, 8> scopStmtSymbols;
 
 public:
   OslScop();
@@ -83,6 +89,14 @@ public:
 
   /// Return a const reference to the internal scopStmtMap data.
   const ScopStmtMap &getScopStmtMap() const;
+
+  /// Add a ScopStmt into the map. A new entry will be initialized in
+  /// scopStmtMap and its symbol will be appended to scopStmtSymbols.
+  void addScopStmt(mlir::CallOp caller, mlir::FuncOp callee);
+
+  /// Build context constraints from the scopStmtMap.
+  void getContextConstraints(mlir::FlatAffineConstraints &ctx,
+                             bool removeDims = false) const;
 
   /// ------------------------- Statements -------------------------------------
 

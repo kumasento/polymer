@@ -12,6 +12,7 @@
 #include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Support/LogicalResult.h"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -23,6 +24,7 @@
 
 using namespace polymer;
 using namespace mlir;
+using namespace llvm;
 
 /// Create osl_vector from a STL vector. Since the input vector is of type
 /// int64_t, we can safely assume the osl_vector we will generate has 64 bits
@@ -111,8 +113,78 @@ bool OslScop::validate() const {
   return osl_scop_integrity_check(scop.get());
 }
 
+/// --------------------------- ScopStmtMap ------------------------------------
+
 const OslScop::ScopStmtMap &OslScop::getScopStmtMap() const {
   return scopStmtMap;
+}
+
+void OslScop::addScopStmt(mlir::CallOp caller, mlir::FuncOp callee) {
+  llvm::StringRef symbol = callee.getName();
+  auto result =
+      scopStmtMap.insert(std::make_pair(symbol, ScopStmt(caller, callee)));
+
+  // Here we use the StringRef to the key in the map, which will be persist
+  // during the lifespan of OslScop.
+  scopStmtSymbols.push_back(result.first->first());
+}
+
+/// This function tries to remove constraints that has non-zero coefficients at
+/// the given position.
+static void removeConstraintsWithNonZeroCoeff(FlatAffineConstraints &cst,
+                                              unsigned pos) {
+  unsigned row = 0;
+  while (row < cst.getNumEqualities() + cst.getNumInequalities()) {
+    bool isEq = row < cst.getNumEqualities();
+    unsigned id = isEq ? row : row - cst.getNumEqualities();
+
+    int64_t coeff = isEq ? cst.atEq(id, pos) : cst.atIneq(id, pos);
+    if (coeff != 0) {
+      if (isEq)
+        cst.removeEquality(id);
+      else
+        cst.removeInequality(id);
+    } else {
+      row++;
+    }
+  }
+}
+
+/// Remove dim columns and all constraints that have non-zero coefficients on
+/// those dim values.
+static void removeDims(mlir::FlatAffineConstraints &cst) {
+  for (unsigned pos = 0; pos < cst.getNumDimIds(); pos++)
+    removeConstraintsWithNonZeroCoeff(cst, pos);
+  while (cst.getNumDimIds() > 0)
+    cst.removeId(0);
+}
+
+void OslScop::getContextConstraints(mlir::FlatAffineConstraints &ctx,
+                                    bool isRemovingDims) const {
+  ctx.reset();
+
+  // Union with the domains of all Scop statements. We first merge and align the
+  // IDs of the context and the domain of the scop statement, and then append
+  // the constraints from the domain to the context. Note that we don't want to
+  // mess up with the original domain at this point. Trivial redundant
+  // constraints will be removed.
+  for (const auto &it : scopStmtMap) {
+    const FlatAffineConstraints &domain = it.second.getDomain();
+    FlatAffineConstraints cst(domain);
+
+    ctx.mergeAndAlignIdsWithOther(0, &cst);
+    ctx.append(cst);
+    ctx.removeRedundantConstraints();
+
+    if (isRemovingDims) {
+      removeDims(ctx);
+    } else {
+      llvm::SmallVector<mlir::Value, 8> dimValues;
+      cst.getIdValues(0, cst.getNumDimIds(), &dimValues);
+      for (mlir::Value dim : dimValues)
+        ctx.projectOut(dim);
+    }
+  }
 }
 
 /// --------------------------- Statements -------------------------------------

@@ -232,7 +232,9 @@ ScopStmt::~ScopStmt() = default;
 ScopStmt::ScopStmt(ScopStmt &&) = default;
 ScopStmt &ScopStmt::operator=(ScopStmt &&) = default;
 
-FlatAffineConstraints *ScopStmt::getDomain() const { return &(impl->domain); }
+const FlatAffineConstraints &ScopStmt::getDomain() const {
+  return impl->domain;
+}
 
 void ScopStmt::getEnclosingOps(llvm::SmallVectorImpl<mlir::Operation *> &ops,
                                bool forOnly) const {
