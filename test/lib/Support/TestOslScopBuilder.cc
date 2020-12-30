@@ -10,48 +10,18 @@
 #include <string>
 
 #include "mlir/Analysis/AffineStructures.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/IntegerSet.h"
 #include "mlir/Pass/Pass.h"
 
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/raw_os_ostream.h"
 
 using namespace mlir;
 using namespace llvm;
 using namespace polymer;
-
-static std::string
-getFlatAffineConstraintsAsString(const FlatAffineConstraints &cst) {
-  std::string s;
-
-  s += "eqs: {";
-  for (unsigned i = 0; i < cst.getNumEqualities(); i++) {
-    s += "{ ";
-    for (unsigned j = 0; j < cst.getNumCols(); j++) {
-      s += std::to_string(cst.atEq(i, j));
-      if (j < cst.getNumCols() - 1)
-        s += ", ";
-    }
-    s += " }";
-    if (i < cst.getNumEqualities() - 1)
-      s += ", ";
-  }
-
-  s += "} inEqs: {";
-  for (unsigned i = 0; i < cst.getNumInequalities(); i++) {
-    s += "{ ";
-    for (unsigned j = 0; j < cst.getNumCols(); j++) {
-      s += std::to_string(cst.atIneq(i, j));
-      if (j < cst.getNumCols() - 1)
-        s += ", ";
-    }
-    s += " }";
-    if (i < cst.getNumInequalities() - 1)
-      s += ", ";
-  }
-  s += "}";
-  return s;
-}
 
 namespace {
 struct TestOslScopBuilderPass
@@ -67,10 +37,22 @@ struct TestOslScopBuilderPass
     if (scop == nullptr)
       return;
 
+    // Check the content of the context after projecting out all dim values.
     FlatAffineConstraints ctx;
     scop->getContextConstraints(ctx);
-    f.emitRemark("Num context parameters: ") << ctx.getNumDimAndSymbolIds();
-    f.emitRemark() << getFlatAffineConstraintsAsString(ctx);
+    ctx.projectOut(0, ctx.getNumDimIds());
+
+    IntegerSet iset = ctx.getAsIntegerSet(f.getContext());
+    f.setAttr("scop.ctx", IntegerSetAttr::get(iset));
+
+    llvm::SmallVector<mlir::Attribute, 8> ctxParams;
+    llvm::SmallVector<mlir::Value, 8> ctxSymValues;
+    ctx.getIdValues(ctx.getNumDimIds(), ctx.getNumDimAndSymbolIds(),
+                    &ctxSymValues);
+    for (mlir::Value ctxSym : ctxSymValues)
+      ctxParams.push_back(
+          StringAttr::get(scop->getOrCreateSymbol(ctxSym), f.getContext()));
+    f.setAttr("scop.ctx_params", ArrayAttr::get(ctxParams, f.getContext()));
   }
 };
 } // namespace

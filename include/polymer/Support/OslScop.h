@@ -46,6 +46,9 @@ public:
       std::unique_ptr<osl_scop_t, decltype(osl_scop_free) *>;
 
   static constexpr const char *const SCOP_STMT_ATTR_NAME = "scop.stmt";
+  static constexpr const char *const SCOP_IV_NAME_ATTR_NAME = "scop.iv_name";
+  static constexpr const char *const SCOP_ARG_NAMES_ATTR_NAME =
+      "scop.arg_names";
 
   enum SymbolType { MEMREF, INDVAR, PARAMETER, CONSTANT };
 
@@ -94,9 +97,11 @@ public:
   /// scopStmtMap and its symbol will be appended to scopStmtSymbols.
   void addScopStmt(mlir::CallOp caller, mlir::FuncOp callee);
 
-  /// Build context constraints from the scopStmtMap.
-  void getContextConstraints(mlir::FlatAffineConstraints &ctx,
-                             bool removeDims = false) const;
+  /// Build context constraints from the scopStmtMap. The context is basically a
+  /// union of all domain constraints. Its ID values will be used to derive the
+  /// symbol table. Its constraints, however, can only be used once we project
+  /// out all the dim values, i.e., just leave the constraints only on symbols.
+  void getContextConstraints(mlir::FlatAffineConstraints &ctx) const;
 
   /// ------------------------- Statements -------------------------------------
 
@@ -197,6 +202,10 @@ public:
   SymbolType getSymbolType(llvm::StringRef symbol) const;
   /// Get the symbol type based on the MLIR value.
   SymbolType getSymbolType(mlir::Value value) const;
+
+  /// Initialize symbol table. Parameters and induction variables can be found
+  /// from the context (ctx) derived from scopStmtMap. TBA
+  void initSymbolTable(mlir::FuncOp f, const mlir::FlatAffineConstraints &ctx);
 };
 
 } // namespace polymer

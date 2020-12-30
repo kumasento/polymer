@@ -8,6 +8,7 @@
 #include "polymer/Support/OslScopBuilder.h"
 #include "polymer/Support/OslScop.h"
 
+#include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BuiltinOps.h"
 
@@ -38,6 +39,10 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
   // If no ScopStmt is constructed, we will discard this build.
   if (scop->getScopStmtMap().size() == 0)
     return nullptr;
+
+  FlatAffineConstraints ctx;
+  scop->getContextConstraints(ctx);
+  scop->initSymbolTable(f, ctx);
 
   return scop;
 }

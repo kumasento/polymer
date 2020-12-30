@@ -129,38 +129,7 @@ void OslScop::addScopStmt(mlir::CallOp caller, mlir::FuncOp callee) {
   scopStmtSymbols.push_back(result.first->first());
 }
 
-/// This function tries to remove constraints that has non-zero coefficients at
-/// the given position.
-static void removeConstraintsWithNonZeroCoeff(FlatAffineConstraints &cst,
-                                              unsigned pos) {
-  unsigned row = 0;
-  while (row < cst.getNumEqualities() + cst.getNumInequalities()) {
-    bool isEq = row < cst.getNumEqualities();
-    unsigned id = isEq ? row : row - cst.getNumEqualities();
-
-    int64_t coeff = isEq ? cst.atEq(id, pos) : cst.atIneq(id, pos);
-    if (coeff != 0) {
-      if (isEq)
-        cst.removeEquality(id);
-      else
-        cst.removeInequality(id);
-    } else {
-      row++;
-    }
-  }
-}
-
-/// Remove dim columns and all constraints that have non-zero coefficients on
-/// those dim values.
-static void removeDims(mlir::FlatAffineConstraints &cst) {
-  for (unsigned pos = 0; pos < cst.getNumDimIds(); pos++)
-    removeConstraintsWithNonZeroCoeff(cst, pos);
-  while (cst.getNumDimIds() > 0)
-    cst.removeId(0);
-}
-
-void OslScop::getContextConstraints(mlir::FlatAffineConstraints &ctx,
-                                    bool isRemovingDims) const {
+void OslScop::getContextConstraints(mlir::FlatAffineConstraints &ctx) const {
   ctx.reset();
 
   // Union with the domains of all Scop statements. We first merge and align the
@@ -175,15 +144,6 @@ void OslScop::getContextConstraints(mlir::FlatAffineConstraints &ctx,
     ctx.mergeAndAlignIdsWithOther(0, &cst);
     ctx.append(cst);
     ctx.removeRedundantConstraints();
-
-    if (isRemovingDims) {
-      removeDims(ctx);
-    } else {
-      llvm::SmallVector<mlir::Value, 8> dimValues;
-      cst.getIdValues(0, cst.getNumDimIds(), &dimValues);
-      for (mlir::Value dim : dimValues)
-        ctx.projectOut(dim);
-    }
   }
 }
 
@@ -689,4 +649,52 @@ OslScop::SymbolType OslScop::getSymbolType(mlir::Value value) const {
     return CONSTANT;
 
   assert(false && "Given value cannot correspond to a symbol.");
+}
+
+void OslScop::initSymbolTable(mlir::FuncOp f,
+                              const mlir::FlatAffineConstraints &ctx) {
+  symbolTable.clear();
+
+  llvm::SmallVector<mlir::Value, 8> dimValues, symValues;
+  ctx.getIdValues(0, ctx.getNumDimIds(), &dimValues);
+  ctx.getIdValues(ctx.getNumDimIds(), ctx.getNumDimAndSymbolIds(), &symValues);
+
+  for (mlir::Value dim : dimValues) {
+    llvm::StringRef dimName = getOrCreateSymbol(dim);
+    assert(dim.isa<mlir::BlockArgument>() &&
+           "Values being used as a dim should be a BlockArgument.");
+
+    mlir::Operation *parentOp =
+        dim.cast<mlir::BlockArgument>().getParentBlock()->getParentOp();
+    assert(isa<mlir::AffineForOp>(parentOp) &&
+           "dim should belong to an affine.for op.");
+
+    parentOp->setAttr(SCOP_IV_NAME_ATTR_NAME,
+                      StringAttr::get(dimName, f.getContext()));
+  }
+
+  llvm::SmallDenseMap<mlir::Value, llvm::StringRef, 8> symToName;
+  for (mlir::Value sym : symValues) {
+    llvm::StringRef symName = getOrCreateSymbol(sym);
+    assert(sym.isa<mlir::BlockArgument>() &&
+           "Values being used as a symbol should be a BlockArgument.");
+
+    mlir::Operation *parentOp =
+        sym.cast<mlir::BlockArgument>().getParentBlock()->getParentOp();
+    assert(parentOp == f && "sym should belong to the given func op.");
+
+    symToName[sym] = symName;
+  }
+
+  // TODO: give all f BlockArguments a symbol.
+  llvm::SmallVector<mlir::Attribute, 8> argNames;
+  for (unsigned i = 0; i < f.getNumArguments(); i++) {
+    mlir::Value arg = f.getArgument(i);
+    if (symToName.find(arg) != symToName.end())
+      argNames.push_back(StringAttr::get(symToName[arg], f.getContext()));
+    else
+      argNames.push_back(StringAttr::get("", f.getContext()));
+  }
+
+  f.setAttr(SCOP_ARG_NAMES_ATTR_NAME, ArrayAttr::get(argNames, f.getContext()));
 }
