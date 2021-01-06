@@ -18,9 +18,12 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <vector>
+
+#define DEBUG_TYPE "osl-scop"
 
 using namespace polymer;
 using namespace mlir;
@@ -105,6 +108,15 @@ OslScop::OslScop()
 }
 
 OslScop::~OslScop() {}
+
+void OslScop::initialize() {
+  // Get the context constraints from the statements in OslScop.
+  FlatAffineConstraints ctx;
+  getContextConstraints(ctx);
+
+  // Then we use it with the function to initialize the symbol table.
+  initSymbolTable(ctx);
+}
 
 void OslScop::print(FILE *fp) const { osl_scop_print(fp, scop.get()); }
 
@@ -589,20 +601,49 @@ void OslScop::addBodyExtension(int stmtId, const ScopStmt &stmt) {
 
 /// --------------------------- Symbol Table ----------------------------------
 
-llvm::StringRef OslScop::getOrCreateSymbol(mlir::Value value) {
-  unsigned numSymbolsOfType = 0;
+const OslScop::SymbolTable &OslScop::getSymbolTable() const {
+  return symbolTable;
+}
+
+llvm::StringRef OslScop::getSymbol(mlir::Value value) const {
+  return getSymbol(value, nullptr);
+}
+
+llvm::StringRef OslScop::getSymbol(mlir::Value value,
+                                   unsigned *numSymbolsOfType) const {
+  if (getSymbolType(value) == SymbolType::NOT_A_SYMBOL)
+    return llvm::StringRef("");
 
   llvm::StringRef prefix = getSymbolPrefix(value);
+  if (numSymbolsOfType != nullptr)
+    *numSymbolsOfType = 0;
+
   for (const auto &it : symbolTable) {
-    if (it.first().startswith(prefix))
-      numSymbolsOfType++;
+    if (numSymbolsOfType != nullptr && it.first().startswith(prefix))
+      (*numSymbolsOfType)++;
     if (it.second == value)
       return it.first();
   }
+  return llvm::StringRef("");
+}
+
+llvm::StringRef OslScop::getOrCreateSymbol(mlir::Value value) {
+  if (getSymbolType(value) == SymbolType::NOT_A_SYMBOL)
+    return llvm::StringRef("");
+
+  LLVM_DEBUG(llvm::dbgs() << "getOrCreateSymbol for value: " << value << "\n");
+  unsigned numSymbolsOfType;
+
+  llvm::StringRef prefix = getSymbolPrefix(value);
+  llvm::StringRef foundSymbol = getSymbol(value, &numSymbolsOfType);
+  if (!foundSymbol.empty())
+    return foundSymbol;
 
   /// If the symbol doesn't exist, we create a new one following the
   /// corresponding prefix and an integral ID that is increased every creation.
   std::string symbol = prefix.str() + std::to_string(numSymbolsOfType);
+  LLVM_DEBUG(llvm::dbgs() << "Symbol created: " << symbol << "\n");
+
   auto result = symbolTable.insert(std::make_pair(symbol, value));
   assert(result.second && "Insertion of the new symbol should be successful.");
 
@@ -612,6 +653,7 @@ llvm::StringRef OslScop::getOrCreateSymbol(mlir::Value value) {
 }
 
 llvm::StringRef OslScop::getSymbolPrefix(OslScop::SymbolType type) const {
+
   switch (type) {
   case MEMREF:
     return llvm::StringRef("A");
@@ -621,6 +663,8 @@ llvm::StringRef OslScop::getSymbolPrefix(OslScop::SymbolType type) const {
     return llvm::StringRef("P");
   case CONSTANT:
     return llvm::StringRef("C");
+  default:
+    assert(false && "Given type doesn't have a corresponding prefix.");
   }
 }
 
@@ -634,67 +678,59 @@ OslScop::SymbolType OslScop::getSymbolType(llvm::StringRef symbol) const {
     if (symbol.startswith(getSymbolPrefix(type)))
       return type;
   }
-
-  assert(false && "Given symbol doesn't match and prefix.");
+  return NOT_A_SYMBOL;
 }
 
 OslScop::SymbolType OslScop::getSymbolType(mlir::Value value) const {
   if (mlir::isForInductionVar(value))
     return INDVAR;
-  else if (value.isa<mlir::BlockArgument>())
-    return PARAMETER;
   else if (value.getType().isa<mlir::MemRefType>())
     return MEMREF;
+  // TODO: it is likely that more values will be marked as parameters than
+  // expected. Not sure whether this could cause any correctness issues.
+  else if (mlir::isValidSymbol(value))
+    return PARAMETER;
   else if (value.getDefiningOp<mlir::ConstantOp>())
     return CONSTANT;
-
-  assert(false && "Given value cannot correspond to a symbol.");
+  return NOT_A_SYMBOL;
 }
 
-void OslScop::initSymbolTable(mlir::FuncOp f,
-                              const mlir::FlatAffineConstraints &ctx) {
+void OslScop::initSymbolTable(const mlir::FlatAffineConstraints &ctx) {
   symbolTable.clear();
 
   llvm::SmallVector<mlir::Value, 8> dimValues, symValues;
+
   ctx.getIdValues(0, ctx.getNumDimIds(), &dimValues);
   ctx.getIdValues(ctx.getNumDimIds(), ctx.getNumDimAndSymbolIds(), &symValues);
 
+  LLVM_DEBUG(llvm::dbgs() << "Num dim values: " << dimValues.size() << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "Num symbol values: " << symValues.size() << "\n");
+
+  // Initialize loop induction variables.
   for (mlir::Value dim : dimValues) {
-    llvm::StringRef dimName = getOrCreateSymbol(dim);
     assert(dim.isa<mlir::BlockArgument>() &&
            "Values being used as a dim should be a BlockArgument.");
-
-    mlir::Operation *parentOp =
-        dim.cast<mlir::BlockArgument>().getParentBlock()->getParentOp();
-    assert(isa<mlir::AffineForOp>(parentOp) &&
-           "dim should belong to an affine.for op.");
-
-    parentOp->setAttr(SCOP_IV_NAME_ATTR_NAME,
-                      StringAttr::get(dimName, f.getContext()));
+    getOrCreateSymbol(dim);
   }
 
-  llvm::SmallDenseMap<mlir::Value, llvm::StringRef, 8> symToName;
+  // Initialize parameters.
   for (mlir::Value sym : symValues) {
-    llvm::StringRef symName = getOrCreateSymbol(sym);
-    assert(sym.isa<mlir::BlockArgument>() &&
-           "Values being used as a symbol should be a BlockArgument.");
-
-    mlir::Operation *parentOp =
-        sym.cast<mlir::BlockArgument>().getParentBlock()->getParentOp();
-    assert(parentOp == f && "sym should belong to the given func op.");
-
-    symToName[sym] = symName;
+    LLVM_DEBUG(llvm::dbgs() << "Initializing symbol for: " << sym << "\n");
+    assert(mlir::isValidSymbol(sym) &&
+           "Values being used as a symbol should be valid.");
+    getOrCreateSymbol(sym);
   }
 
-  // TODO: give all f BlockArguments a symbol.
-  llvm::SmallVector<mlir::Attribute, 8> argNames;
-  for (unsigned i = 0; i < f.getNumArguments(); i++) {
-    mlir::Value arg = f.getArgument(i);
-    if (symToName.find(arg) != symToName.end())
-      argNames.push_back(StringAttr::get(symToName[arg], f.getContext()));
-    else
-      argNames.push_back(StringAttr::get("", f.getContext()));
+  // Initialize all arrays.
+  for (const auto &it : scopStmtMap) {
+    mlir::CallOp caller = it.second.getCaller();
+    LLVM_DEBUG(llvm::dbgs()
+               << "Initializing arrays from caller: " << caller << "\n");
+    for (mlir::Value arg : caller.getOperands()) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << arg << " symbol type is: " << getSymbolType(arg));
+      if (getSymbolType(arg) == SymbolType::MEMREF)
+        getOrCreateSymbol(arg);
+    }
   }
-
-  f.setAttr(SCOP_ARG_NAMES_ATTR_NAME, ArrayAttr::get(argNames, f.getContext()));
 }

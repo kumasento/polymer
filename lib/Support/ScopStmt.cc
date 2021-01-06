@@ -23,6 +23,9 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Debug.h"
+
+#define DEBUG_TYPE "osl-scop"
 
 using namespace llvm;
 using namespace mlir;
@@ -102,6 +105,10 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
   // The domain constraints can then be collected from the enclosing ops.
   getIndexSet(enclosingOps, &domain);
 
+  LLVM_DEBUG(llvm::dbgs() << "Initialized domain:\n");
+  LLVM_DEBUG(domain.dump());
+
+#if 0 
   // Symbol values, which could be a BlockArgument, or the result of DimOp or
   // IndexCastOp, or even an affine.apply. Here we limit the cases to be either
   // BlockArgument or IndexCastOp, and if it is an IndexCastOp, the cast source
@@ -213,6 +220,7 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
   domain.removeRedundantConstraints();
   // llvm::errs() << "After pruning all affine.apply\n";
   // domain.dump();
+#endif
 }
 
 void ScopStmtImpl::getArgsValueMapping(BlockAndValueMapping &argMap) {

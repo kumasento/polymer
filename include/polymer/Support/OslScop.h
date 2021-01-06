@@ -47,10 +47,12 @@ public:
 
   static constexpr const char *const SCOP_STMT_ATTR_NAME = "scop.stmt";
   static constexpr const char *const SCOP_IV_NAME_ATTR_NAME = "scop.iv_name";
+  static constexpr const char *const SCOP_PARAM_NAMES_ATTR_NAME =
+      "scop.param_names";
   static constexpr const char *const SCOP_ARG_NAMES_ATTR_NAME =
       "scop.arg_names";
 
-  enum SymbolType { MEMREF, INDVAR, PARAMETER, CONSTANT };
+  enum SymbolType { NOT_A_SYMBOL, MEMREF, INDVAR, PARAMETER, CONSTANT };
 
 private:
   /// The osl_scop object being managed.
@@ -77,6 +79,10 @@ public:
   OslScop &operator=(const OslScop &) = delete;
 
   ~OslScop();
+
+  /// Initialize the internal data structures. You should only call this once
+  /// all ScopStmts are inserted into the scopStmtMap.
+  void initialize();
 
   /// Get the raw scop pointer.
   osl_scop *get() { return scop.get(); }
@@ -190,7 +196,17 @@ public:
 
   /// ------------------------- Symbol Table ----------------------------------
 
-  /// Find the symbol for the given Value. Return an empty symbol if not found.
+  /// Get a const reference to the symbol table.
+  const SymbolTable &getSymbolTable() const;
+
+  /// Find symbol from the symbol table for the given Value.  Return an empty
+  /// symbol if not found.
+  llvm::StringRef getSymbol(mlir::Value value) const;
+  llvm::StringRef getSymbol(mlir::Value value,
+                            unsigned *numSymbolsOfType) const;
+
+  /// Find the symbol for the given Value. If not exists, create a new one based
+  /// on the hardcoded rule.
   llvm::StringRef getOrCreateSymbol(mlir::Value value);
 
   /// Get the symbol prefix ('A', 'i', 'P', etc.) based on the symbol type.
@@ -204,8 +220,8 @@ public:
   SymbolType getSymbolType(mlir::Value value) const;
 
   /// Initialize symbol table. Parameters and induction variables can be found
-  /// from the context (ctx) derived from scopStmtMap. TBA
-  void initSymbolTable(mlir::FuncOp f, const mlir::FlatAffineConstraints &ctx);
+  /// from the context (ctx) derived from scopStmtMap.
+  void initSymbolTable(const mlir::FlatAffineConstraints &ctx);
 };
 
 } // namespace polymer
