@@ -32,6 +32,73 @@ class FuncOp;
 
 namespace polymer {
 
+/// Container for the symbol table that maps from symbols used in OslScop to
+/// MLIR values.
+class OslScopSymbolTable {
+public:
+  using Container = llvm::StringMap<mlir::Value>;
+
+  enum SymbolType { NOT_A_SYMBOL, MEMREF, INDVAR, PARAMETER, CONSTANT };
+
+  /// Get a const reference to the symbol table.
+  const Container &getSymbolTable() const;
+
+  /// Find symbol from the symbol table for the given Value.  Return an empty
+  /// symbol if not found.
+  llvm::StringRef getSymbol(mlir::Value value) const;
+  llvm::StringRef getSymbol(mlir::Value value,
+                            unsigned *numSymbolsOfType) const;
+
+  /// Find the symbol for the given Value. If not exists, create a new one based
+  /// on the hardcoded rule.
+  llvm::StringRef getOrCreateSymbol(mlir::Value value);
+
+  /// Get the symbol prefix ('A', 'i', 'P', etc.) based on the symbol type.
+  llvm::StringRef getSymbolPrefix(SymbolType type) const;
+  /// Get the symbol prefix ('A', 'i', 'P', etc.) based on the value type.
+  llvm::StringRef getSymbolPrefix(mlir::Value value) const;
+
+  /// Get the symbol type based on the symbol content.
+  SymbolType getSymbolType(llvm::StringRef symbol) const;
+  /// Get the symbol type based on the MLIR value.
+  SymbolType getSymbolType(mlir::Value value) const;
+
+private:
+  Container symbolTable;
+};
+
+/// Container for the mapping between symbols and ScopStmts.
+class OslScopStmtMap {
+public:
+  using Container = llvm::StringMap<ScopStmt>;
+  using Symbols = llvm::SmallVector<llvm::StringRef, 8>;
+
+  using iterator = Container::iterator;
+  using const_iterator = Container::const_iterator;
+
+  iterator begin() { return scopStmtMap.begin(); }
+  iterator end() { return scopStmtMap.end(); }
+  const_iterator begin() const { return scopStmtMap.begin(); }
+  const_iterator end() const { return scopStmtMap.end(); }
+
+  unsigned size() const { return scopStmtMap.size(); }
+
+  /// Insert a ScopStmt into the map. A new entry will be initialized in
+  /// scopStmtMap and its symbol will be appended to scopStmtSymbols.
+  void insert(ScopStmt scopStmt);
+  void insert(mlir::CallOp caller, mlir::FuncOp callee);
+
+  /// Build context constraints from the scopStmtMap. The context is basically a
+  /// union of all domain constraints. Its ID values will be used to derive the
+  /// symbol table. Its constraints, however, can only be used once we project
+  /// out all the dim values, i.e., just leave the constraints only on symbols.
+  mlir::FlatAffineConstraints getContext() const;
+
+private:
+  Container scopStmtMap;
+  Symbols scopStmtSymbols;
+};
+
 /// A wrapper for the osl_scop struct in the openscop library. It mainly
 /// provides functionalities for accessing the contents in a osl_scop, and
 /// the methods for adding new relations. It also holds a symbol table that maps

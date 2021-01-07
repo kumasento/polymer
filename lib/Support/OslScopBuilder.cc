@@ -12,9 +12,13 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/IntegerSet.h"
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Debug.h"
+
+#define DEBUG_TYPE "osl-scop"
 
 using namespace polymer;
 using namespace mlir;
@@ -23,25 +27,72 @@ using namespace llvm;
 /// Find all CallOp and FuncOp pairs with scop.stmt attribute in the given
 /// module and insert them into the OslScop.
 static void findAndInsertScopStmts(mlir::FuncOp f,
-                                   std::unique_ptr<OslScop> &scop) {
+                                   OslScopStmtMap &scopStmtMap) {
   mlir::ModuleOp m = f.getParentOfType<mlir::ModuleOp>();
 
   f.walk([&](mlir::CallOp caller) {
     mlir::FuncOp callee = m.lookupSymbol<mlir::FuncOp>(caller.getCallee());
 
     if (callee.getAttr(OslScop::SCOP_STMT_ATTR_NAME))
-      scop->addScopStmt(caller, callee);
+      scopStmtMap.insert(caller, callee);
   });
+}
+
+/// Initialize symbol table. Parameters and induction variables can be found
+/// from the context derived from scopStmtMap.
+static OslScopSymbolTable initSymbolTable(const FlatAffineConstraints &ctx,
+                                          const OslScopStmtMap &scopStmtMap) {
+  OslScopSymbolTable symbolTable;
+
+  llvm::SmallVector<mlir::Value, 8> dimValues, symValues;
+
+  ctx.getIdValues(0, ctx.getNumDimIds(), &dimValues);
+  ctx.getIdValues(ctx.getNumDimIds(), ctx.getNumDimAndSymbolIds(), &symValues);
+
+  LLVM_DEBUG(llvm::dbgs() << "Num dim values: " << dimValues.size() << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "Num symbol values: " << symValues.size() << "\n");
+
+  // Initialize loop induction variables.
+  for (mlir::Value dim : dimValues) {
+    assert(dim.isa<mlir::BlockArgument>() &&
+           "Values being used as a dim should be a BlockArgument.");
+    symbolTable.getOrCreateSymbol(dim);
+  }
+
+  // Initialize parameters.
+  for (mlir::Value sym : symValues) {
+    LLVM_DEBUG(llvm::dbgs() << "Initializing symbol for: " << sym << "\n");
+    assert(mlir::isValidSymbol(sym) &&
+           "Values being used as a symbol should be valid.");
+    symbolTable.getOrCreateSymbol(sym);
+  }
+
+  // Initialize all arrays.
+  for (const auto &it : scopStmtMap) {
+    mlir::CallOp caller = it.second.getCaller();
+    LLVM_DEBUG(llvm::dbgs()
+               << "Initializing arrays from caller: " << caller << "\n");
+    for (mlir::Value arg : caller.getOperands()) {
+      LLVM_DEBUG(llvm::dbgs() << arg << " symbol type is: "
+                              << symbolTable.getSymbolType(arg));
+      if (symbolTable.getSymbolType(arg) == OslScopSymbolTable::MEMREF)
+        symbolTable.getOrCreateSymbol(arg);
+    }
+  }
+
+  return symbolTable;
 }
 
 /// Iterate every value in the given function and annotate them by the symbol in
 /// the symbol table of scop, if there is any.
-static void setSymbolAttrs(mlir::FuncOp f, std::unique_ptr<OslScop> &scop) {
+static void setSymbolAttrs(mlir::FuncOp f,
+                           const OslScopSymbolTable &symbolTable,
+                           FlatAffineConstraints ctx) {
   // Set symbols for the function BlockArguments.
   llvm::SmallVector<mlir::Attribute, 8> argNames;
   for (unsigned i = 0; i < f.getNumArguments(); i++) {
     mlir::Value arg = f.getArgument(i);
-    llvm::StringRef symbol = scop->getSymbol(arg);
+    llvm::StringRef symbol = symbolTable.getSymbol(arg);
     argNames.push_back(StringAttr::get(symbol, f.getContext()));
   }
 
@@ -50,7 +101,7 @@ static void setSymbolAttrs(mlir::FuncOp f, std::unique_ptr<OslScop> &scop) {
 
   // Set symbols for all induction variables in the function.
   f.walk([&](mlir::AffineForOp op) {
-    llvm::StringRef symbol = scop->getSymbol(op.getInductionVar());
+    llvm::StringRef symbol = symbolTable.getSymbol(op.getInductionVar());
 
     op.setAttr(OslScop::SCOP_IV_NAME_ATTR_NAME,
                StringAttr::get(symbol, f.getContext()));
@@ -62,7 +113,7 @@ static void setSymbolAttrs(mlir::FuncOp f, std::unique_ptr<OslScop> &scop) {
 
     bool hasNonEmptySymbol = false;
     for (mlir::Value result : op->getResults()) {
-      llvm::StringRef symbol = scop->getSymbol(result);
+      llvm::StringRef symbol = symbolTable.getSymbol(result);
       symbols.push_back(StringAttr::get(symbol, f.getContext()));
       if (!symbol.empty())
         hasNonEmptySymbol = true;
@@ -72,22 +123,38 @@ static void setSymbolAttrs(mlir::FuncOp f, std::unique_ptr<OslScop> &scop) {
       op->setAttr(OslScop::SCOP_PARAM_NAMES_ATTR_NAME,
                   ArrayAttr::get(symbols, f.getContext()));
   });
+
+  // Set symbols for the context.
+  ctx.projectOut(0, ctx.getNumDimIds());
+
+  IntegerSet iset = ctx.getAsIntegerSet(f.getContext());
+  f.setAttr("scop.ctx", IntegerSetAttr::get(iset));
+
+  llvm::SmallVector<mlir::Attribute, 8> ctxParams;
+  llvm::SmallVector<mlir::Value, 8> ctxSymValues;
+  ctx.getIdValues(ctx.getNumDimIds(), ctx.getNumDimAndSymbolIds(),
+                  &ctxSymValues);
+  for (mlir::Value ctxSym : ctxSymValues)
+    ctxParams.push_back(
+        StringAttr::get(symbolTable.getSymbol(ctxSym), f.getContext()));
+  f.setAttr("scop.ctx_params", ArrayAttr::get(ctxParams, f.getContext()));
 }
 
 std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
   std::unique_ptr<OslScop> scop = std::make_unique<OslScop>();
 
-  findAndInsertScopStmts(f, scop);
+  OslScopStmtMap scopStmtMap;
+
+  findAndInsertScopStmts(f, scopStmtMap);
 
   // If no ScopStmt is constructed, we will discard this build.
-  if (scop->getScopStmtMap().size() == 0)
+  if (scopStmtMap.size() == 0)
     return nullptr;
 
-  // Now we have put all the ScopStmts into the scop. We can start the
-  // initialization then.
-  scop->initialize();
+  const FlatAffineConstraints ctx = scopStmtMap.getContext();
+  OslScopSymbolTable symbolTable = initSymbolTable(ctx, scopStmtMap);
 
-  setSymbolAttrs(f, scop);
+  setSymbolAttrs(f, symbolTable, ctx);
 
   return scop;
 }

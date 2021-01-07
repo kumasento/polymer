@@ -29,6 +29,146 @@ using namespace polymer;
 using namespace mlir;
 using namespace llvm;
 
+/// ----------------------------- OslScopSymbolTable ---------------------------
+
+const OslScopSymbolTable::Container &
+OslScopSymbolTable::getSymbolTable() const {
+  return symbolTable;
+}
+
+llvm::StringRef OslScopSymbolTable::getSymbol(mlir::Value value) const {
+  return getSymbol(value, nullptr);
+}
+
+llvm::StringRef
+OslScopSymbolTable::getSymbol(mlir::Value value,
+                              unsigned *numSymbolsOfType) const {
+  if (getSymbolType(value) == SymbolType::NOT_A_SYMBOL)
+    return llvm::StringRef("");
+
+  llvm::StringRef prefix = getSymbolPrefix(value);
+  if (numSymbolsOfType != nullptr)
+    *numSymbolsOfType = 0;
+
+  for (const auto &it : symbolTable) {
+    if (numSymbolsOfType != nullptr && it.first().startswith(prefix))
+      (*numSymbolsOfType)++;
+    if (it.second == value)
+      return it.first();
+  }
+  return llvm::StringRef("");
+}
+
+llvm::StringRef OslScopSymbolTable::getOrCreateSymbol(mlir::Value value) {
+  if (getSymbolType(value) == SymbolType::NOT_A_SYMBOL)
+    return llvm::StringRef("");
+
+  LLVM_DEBUG(llvm::dbgs() << "getOrCreateSymbol for value: " << value << "\n");
+  unsigned numSymbolsOfType;
+
+  llvm::StringRef prefix = getSymbolPrefix(value);
+  llvm::StringRef foundSymbol = getSymbol(value, &numSymbolsOfType);
+  if (!foundSymbol.empty())
+    return foundSymbol;
+
+  /// If the symbol doesn't exist, we create a new one following the
+  /// corresponding prefix and an integral ID that is increased every creation.
+  std::string symbol = prefix.str() + std::to_string(numSymbolsOfType);
+  LLVM_DEBUG(llvm::dbgs() << "Symbol created: " << symbol << "\n");
+
+  auto result = symbolTable.insert(std::make_pair(symbol, value));
+  assert(result.second && "Insertion of the new symbol should be successful.");
+
+  // We return the ref to the key stored in the StringMap, instead of the
+  // temporary string object created here.
+  return result.first->first();
+}
+
+llvm::StringRef
+OslScopSymbolTable::getSymbolPrefix(OslScopSymbolTable::SymbolType type) const {
+  switch (type) {
+  case MEMREF:
+    return llvm::StringRef("A");
+  case INDVAR:
+    return llvm::StringRef("i");
+  case PARAMETER:
+    return llvm::StringRef("P");
+  case CONSTANT:
+    return llvm::StringRef("C");
+  default:
+    assert(false && "Given type doesn't have a corresponding prefix.");
+  }
+}
+
+llvm::StringRef OslScopSymbolTable::getSymbolPrefix(mlir::Value value) const {
+  return getSymbolPrefix(getSymbolType(value));
+}
+
+OslScopSymbolTable::SymbolType
+OslScopSymbolTable::getSymbolType(llvm::StringRef symbol) const {
+  for (int i = MEMREF; i != CONSTANT; i++) {
+    SymbolType type = static_cast<SymbolType>(i);
+    if (symbol.startswith(getSymbolPrefix(type)))
+      return type;
+  }
+  return NOT_A_SYMBOL;
+}
+
+OslScopSymbolTable::SymbolType
+OslScopSymbolTable::getSymbolType(mlir::Value value) const {
+  if (mlir::isForInductionVar(value))
+    return INDVAR;
+  else if (value.getType().isa<mlir::MemRefType>())
+    return MEMREF;
+  // TODO: it is likely that more values will be marked as parameters than
+  // expected. Not sure whether this could cause any correctness issues.
+  else if (mlir::isValidSymbol(value))
+    return PARAMETER;
+  else if (value.getDefiningOp<mlir::ConstantOp>())
+    return CONSTANT;
+  return NOT_A_SYMBOL;
+}
+
+/// ----------------------------- OslScopStmtMap ------------------------------
+
+void OslScopStmtMap::insert(ScopStmt scopStmt) {
+  llvm::StringRef symbol = scopStmt.getCallee().getName();
+  assert(scopStmtMap.find(symbol) == scopStmtMap.end() &&
+         "Shouldn't insert the ScopStmts of the same symbol multiple times.");
+
+  auto result = scopStmtMap.insert(std::make_pair(symbol, std::move(scopStmt)));
+
+  // Here we use the StringRef to the key in the map, which will be persist
+  // during the lifespan of OslScop.
+  scopStmtSymbols.push_back(result.first->first());
+}
+
+void OslScopStmtMap::insert(mlir::CallOp caller, mlir::FuncOp callee) {
+  insert(ScopStmt(caller, callee));
+}
+
+FlatAffineConstraints OslScopStmtMap::getContext() const {
+  FlatAffineConstraints ctx;
+
+  // Union with the domains of all Scop statements. We first merge and align the
+  // IDs of the context and the domain of the scop statement, and then append
+  // the constraints from the domain to the context. Note that we don't want to
+  // mess up with the original domain at this point. Trivial redundant
+  // constraints will be removed.
+  for (const auto &it : scopStmtMap) {
+    const FlatAffineConstraints &domain = it.second.getDomain();
+    FlatAffineConstraints cst(domain);
+
+    ctx.mergeAndAlignIdsWithOther(0, &cst);
+    ctx.append(cst);
+    ctx.removeRedundantConstraints();
+  }
+
+  return ctx;
+}
+
+/// ----------------------------- OslScop -------------------------------------
+
 /// Create osl_vector from a STL vector. Since the input vector is of type
 /// int64_t, we can safely assume the osl_vector we will generate has 64 bits
 /// precision. The input vector doesn't contain the e/i indicator.

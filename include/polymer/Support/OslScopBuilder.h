@@ -9,14 +9,11 @@
 
 #include <memory>
 
-#include "mlir/Support/LLVM.h"
-
 namespace mlir {
 class FuncOp;
-}
+} // namespace mlir
 
 namespace polymer {
-
 class OslScop;
 
 /// Build OslScop from FuncOp.

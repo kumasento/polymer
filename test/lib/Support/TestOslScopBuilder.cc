@@ -33,26 +33,6 @@ struct TestOslScopBuilderPass
 
     std::unique_ptr<OslScop> scop = OslScopBuilder().build(f);
     f.emitRemark("Has OslScop: ") << llvm::toStringRef(scop != nullptr);
-
-    if (scop == nullptr)
-      return;
-
-    // Check the content of the context after projecting out all dim values.
-    FlatAffineConstraints ctx;
-    scop->getContextConstraints(ctx);
-    ctx.projectOut(0, ctx.getNumDimIds());
-
-    IntegerSet iset = ctx.getAsIntegerSet(f.getContext());
-    f.setAttr("scop.ctx", IntegerSetAttr::get(iset));
-
-    llvm::SmallVector<mlir::Attribute, 8> ctxParams;
-    llvm::SmallVector<mlir::Value, 8> ctxSymValues;
-    ctx.getIdValues(ctx.getNumDimIds(), ctx.getNumDimAndSymbolIds(),
-                    &ctxSymValues);
-    for (mlir::Value ctxSym : ctxSymValues)
-      ctxParams.push_back(
-          StringAttr::get(scop->getOrCreateSymbol(ctxSym), f.getContext()));
-    f.setAttr("scop.ctx_params", ArrayAttr::get(ctxParams, f.getContext()));
   }
 };
 } // namespace
