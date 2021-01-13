@@ -151,6 +151,24 @@ static void setSymbolAttrs(mlir::FuncOp f,
   f.setAttr("scop.ctx_params", ArrayAttr::get(ctxParams, f.getContext()));
 }
 
+static void setScatTreeAttrs(const OslScopStmtMap &sMap,
+                             const ScatTreeNode &root) {
+  for (const auto &key : sMap.getKeys()) {
+    const ScopStmt &s = sMap.lookup(key);
+    llvm::SmallVector<unsigned, 8> scats;
+    s.getScats(root, scats);
+
+    mlir::CallOp caller = s.getCaller();
+
+    llvm::SmallVector<mlir::Attribute, 8> scatsAttr;
+    for (unsigned id : scats)
+      scatsAttr.push_back(
+          IntegerAttr::get(IntegerType::get(64, caller.getContext()), id));
+    caller.setAttr(OslScop::SCOP_STMT_SCATS_NAME,
+                   ArrayAttr::get(scatsAttr, caller.getContext()));
+  }
+}
+
 std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
   std::unique_ptr<OslScop> scop = std::make_unique<OslScop>();
 
@@ -174,6 +192,7 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
   OslScopSymbolTable symbolTable = initSymbolTable(ctx, scopStmtMap);
 
   setSymbolAttrs(f, symbolTable, ctx);
+  setScatTreeAttrs(scopStmtMap, scatTreeRoot);
 
   return scop;
 }

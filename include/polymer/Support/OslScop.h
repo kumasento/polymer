@@ -127,6 +127,7 @@ public:
       "scop.param_names";
   static constexpr const char *const SCOP_ARG_NAMES_ATTR_NAME =
       "scop.arg_names";
+  static constexpr const char *const SCOP_STMT_SCATS_NAME = "scop.scats";
 
   enum SymbolType { NOT_A_SYMBOL, MEMREF, INDVAR, PARAMETER, CONSTANT };
 

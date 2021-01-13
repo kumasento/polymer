@@ -58,7 +58,7 @@ public:
   /// Get the scattering IDs from a given ScatTree root. If this current
   /// ScopStmt has not been inserted into that ScatTree, an assertion will be
   /// triggered.
-  void getScats(ScatTreeNode &root,
+  void getScats(const ScatTreeNode &root,
                 llvm::SmallVectorImpl<unsigned> &scats) const;
 
   /// Get the access AffineValueMap of an op in the callee and the memref in the

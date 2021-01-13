@@ -262,7 +262,7 @@ void ScopStmt::updateScatTree(ScatTreeNode &root) const {
   root.insertPath(enclosingOps, getCaller());
 }
 
-void ScopStmt::getScats(ScatTreeNode &root,
+void ScopStmt::getScats(const ScatTreeNode &root,
                         llvm::SmallVectorImpl<unsigned> &scats) const {
   llvm::SmallVector<mlir::Operation *, 8> enclosingOps;
   getEnclosingOps(enclosingOps);
