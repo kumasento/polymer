@@ -131,16 +131,25 @@ OslScopSymbolTable::getSymbolType(mlir::Value value) const {
 
 /// ----------------------------- OslScopStmtMap ------------------------------
 
+const OslScopStmtMap::Symbols &OslScopStmtMap::getKeys() const { return keys; }
+
+const ScopStmt &OslScopStmtMap::lookup(llvm::StringRef key) const {
+  const auto &it = map.find(key);
+  assert(it != map.end() && "Cannot find the given key in OslScopStmtMap.");
+
+  return it->getValue();
+}
+
 void OslScopStmtMap::insert(ScopStmt scopStmt) {
   llvm::StringRef symbol = scopStmt.getCallee().getName();
-  assert(scopStmtMap.find(symbol) == scopStmtMap.end() &&
+  assert(map.find(symbol) == map.end() &&
          "Shouldn't insert the ScopStmts of the same symbol multiple times.");
 
-  auto result = scopStmtMap.insert(std::make_pair(symbol, std::move(scopStmt)));
+  auto result = map.insert(std::make_pair(symbol, std::move(scopStmt)));
 
   // Here we use the StringRef to the key in the map, which will be persist
   // during the lifespan of OslScop.
-  scopStmtSymbols.push_back(result.first->first());
+  keys.push_back(result.first->first());
 }
 
 void OslScopStmtMap::insert(mlir::CallOp caller, mlir::FuncOp callee) {
@@ -155,8 +164,9 @@ FlatAffineConstraints OslScopStmtMap::getContext() const {
   // the constraints from the domain to the context. Note that we don't want to
   // mess up with the original domain at this point. Trivial redundant
   // constraints will be removed.
-  for (const auto &it : scopStmtMap) {
-    const FlatAffineConstraints &domain = it.second.getDomain();
+  for (const auto &key : keys) {
+    const ScopStmt &scopStmt = lookup(key);
+    const FlatAffineConstraints &domain = scopStmt.getDomain();
     FlatAffineConstraints cst(domain);
 
     ctx.mergeAndAlignIdsWithOther(0, &cst);

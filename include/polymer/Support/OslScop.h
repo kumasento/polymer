@@ -76,12 +76,18 @@ public:
   using iterator = Container::iterator;
   using const_iterator = Container::const_iterator;
 
-  iterator begin() { return scopStmtMap.begin(); }
-  iterator end() { return scopStmtMap.end(); }
-  const_iterator begin() const { return scopStmtMap.begin(); }
-  const_iterator end() const { return scopStmtMap.end(); }
+  /// Iterators over the internal map. Note that they do not keep the insertion
+  /// order.
+  iterator begin() { return map.begin(); }
+  iterator end() { return map.end(); }
+  const_iterator begin() const { return map.begin(); }
+  const_iterator end() const { return map.end(); }
 
-  unsigned size() const { return scopStmtMap.size(); }
+  /// Lookup by ScopStmt symbol.
+  const ScopStmt &lookup(llvm::StringRef key) const;
+
+  /// Get the size of the map.
+  unsigned size() const { return map.size(); }
 
   /// Insert a ScopStmt into the map. A new entry will be initialized in
   /// scopStmtMap and its symbol will be appended to scopStmtSymbols.
@@ -94,9 +100,12 @@ public:
   /// out all the dim values, i.e., just leave the constraints only on symbols.
   mlir::FlatAffineConstraints getContext() const;
 
+  /// Return the keys as stored in scopStmtSymbols.
+  const Symbols &getKeys() const;
+
 private:
-  Container scopStmtMap;
-  Symbols scopStmtSymbols;
+  Container map;
+  Symbols keys;
 };
 
 /// A wrapper for the osl_scop struct in the openscop library. It mainly

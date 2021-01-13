@@ -5,6 +5,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "polymer/Support/ScopStmt.h"
+#include "polymer/Support/ScatTree.h"
 
 #include "mlir/Analysis/AffineAnalysis.h"
 #include "mlir/Analysis/AffineStructures.h"
@@ -39,7 +40,11 @@ public:
   using EnclosingOpList = SmallVector<Operation *, 8>;
 
   ScopStmtImpl(llvm::StringRef name, mlir::CallOp caller, mlir::FuncOp callee)
-      : name(name), caller(caller), callee(callee) {}
+      : name(name), caller(caller), callee(callee) {
+    // Initialize the domain constraints around the caller. The enclosing ops
+    // will be figured out as well in this process.
+    initializeDomainAndEnclosingOps();
+  }
 
   /// Factory method that is consistent with the ScopStmt API.
   static std::unique_ptr<ScopStmtImpl> get(mlir::Operation *callerOp,
@@ -65,7 +70,7 @@ public:
 
   /// Name of the callee, as well as the scop.stmt. It will also be the
   /// symbol in the OpenScop representation.
-  llvm::StringRef name;
+  const llvm::StringRef name;
   /// The caller to the scop.stmt func.
   mlir::CallOp caller;
   /// The scop.stmt callee.
@@ -89,10 +94,6 @@ std::unique_ptr<ScopStmtImpl> ScopStmtImpl::get(mlir::Operation *callerOp,
 
   // Create the stmt instance.
   auto stmt = std::make_unique<ScopStmtImpl>(name, caller, callee);
-
-  // Initialize the domain constraints around the caller. The enclosing ops will
-  // be figured out as well in this process.
-  stmt->initializeDomainAndEnclosingOps();
 
   return stmt;
 }
@@ -253,6 +254,21 @@ void ScopStmt::getEnclosingOps(llvm::SmallVectorImpl<mlir::Operation *> &ops,
 
 mlir::FuncOp ScopStmt::getCallee() const { return impl->callee; }
 mlir::CallOp ScopStmt::getCaller() const { return impl->caller; }
+
+void ScopStmt::updateScatTree(ScatTreeNode &root) const {
+  llvm::SmallVector<mlir::Operation *, 8> enclosingOps;
+  getEnclosingOps(enclosingOps);
+
+  root.insertPath(enclosingOps, getCaller());
+}
+
+void ScopStmt::getScats(ScatTreeNode &root,
+                        llvm::SmallVectorImpl<unsigned> &scats) const {
+  llvm::SmallVector<mlir::Operation *, 8> enclosingOps;
+  getEnclosingOps(enclosingOps);
+
+  root.getPathIds(enclosingOps, getCaller(), scats);
+}
 
 static mlir::Value findBlockArg(mlir::Value v) {
   mlir::Value r = v;

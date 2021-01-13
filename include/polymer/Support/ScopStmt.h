@@ -21,6 +21,8 @@ class Value;
 } // namespace mlir
 
 namespace polymer {
+
+class ScatTreeNode;
 class ScopStmtImpl;
 
 /// Class that stores all the essential information for a Scop statement,
@@ -49,6 +51,16 @@ public:
   /// Get a copy of the enclosing operations.
   void getEnclosingOps(llvm::SmallVectorImpl<mlir::Operation *> &ops,
                        bool forOnly = false) const;
+
+  /// Update the ScatTree by the current ScopStmt.
+  void updateScatTree(ScatTreeNode &root) const;
+
+  /// Get the scattering IDs from a given ScatTree root. If this current
+  /// ScopStmt has not been inserted into that ScatTree, an assertion will be
+  /// triggered.
+  void getScats(ScatTreeNode &root,
+                llvm::SmallVectorImpl<unsigned> &scats) const;
+
   /// Get the access AffineValueMap of an op in the callee and the memref in the
   /// caller scope that this op is using.
   void getAccessMapAndMemRef(mlir::Operation *op, mlir::AffineValueMap *vMap,

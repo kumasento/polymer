@@ -30,6 +30,8 @@ static void findAndInsertScopStmts(mlir::FuncOp f,
                                    OslScopStmtMap &scopStmtMap) {
   mlir::ModuleOp m = f.getParentOfType<mlir::ModuleOp>();
 
+  // "walk" ensures that the insertion order is aligned with the execution
+  // order of statements.
   f.walk([&](mlir::CallOp caller) {
     mlir::FuncOp callee = m.lookupSymbol<mlir::FuncOp>(caller.getCallee());
 
@@ -40,11 +42,10 @@ static void findAndInsertScopStmts(mlir::FuncOp f,
 
 /// Iterate through the ScopStmts in the scopStmtMap and insert them into the
 /// ScatTree.
-static void initScatTree(ScatTreeNode *root,
-                         const OslScopStmtMap &scopStmtMap) {
-  for (const auto &it : scopStmtMap) {
-    const ScopStmt &scopStmt = it.second;
-    root->insertPath(scopStmt.getCaller());
+static void initScatTree(ScatTreeNode &root, const OslScopStmtMap &sMap) {
+  for (const auto &key : sMap.getKeys()) {
+    const ScopStmt &scopStmt = sMap.lookup(key);
+    scopStmt.updateScatTree(root);
   }
 }
 
@@ -166,7 +167,9 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
     return nullptr;
 
   // Initialize the ScatTree.
+  initScatTree(scatTreeRoot, scopStmtMap);
 
+  // Initialize the context and the symbol table.
   const FlatAffineConstraints ctx = scopStmtMap.getContext();
   OslScopSymbolTable symbolTable = initSymbolTable(ctx, scopStmtMap);
 

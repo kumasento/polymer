@@ -195,6 +195,8 @@ void ScatTreeNodeImpl::getPathIds(
   scatIds[ivs.size()] = curr->findChildId(op).getValue();
 }
 
+/// ------------------------------ ScatTreeNode -------------------------------
+
 ScatTreeNode::ScatTreeNode() : impl{std::make_unique<ScatTreeNodeImpl>()} {}
 ScatTreeNode::~ScatTreeNode() = default;
 ScatTreeNode::ScatTreeNode(ScatTreeNode &&) = default;
