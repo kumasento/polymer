@@ -38,6 +38,16 @@ static void findAndInsertScopStmts(mlir::FuncOp f,
   });
 }
 
+/// Iterate through the ScopStmts in the scopStmtMap and insert them into the
+/// ScatTree.
+static void initScatTree(ScatTreeNode *root,
+                         const OslScopStmtMap &scopStmtMap) {
+  for (const auto &it : scopStmtMap) {
+    const ScopStmt &scopStmt = it.second;
+    root->insertPath(scopStmt.getCaller());
+  }
+}
+
 /// Initialize symbol table. Parameters and induction variables can be found
 /// from the context derived from scopStmtMap.
 static OslScopSymbolTable initSymbolTable(const FlatAffineConstraints &ctx,
@@ -144,12 +154,18 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
   std::unique_ptr<OslScop> scop = std::make_unique<OslScop>();
 
   OslScopStmtMap scopStmtMap;
+  ScatTreeNode scatTreeRoot;
 
+  // Initialize and build the scopStmtMap. All the ScopStmts will be extracted
+  // from f and inserted into scopStmtMap. Each ScopStmt will have its own
+  // domain.
   findAndInsertScopStmts(f, scopStmtMap);
 
   // If no ScopStmt is constructed, we will discard this build.
   if (scopStmtMap.size() == 0)
     return nullptr;
+
+  // Initialize the ScatTree.
 
   const FlatAffineConstraints ctx = scopStmtMap.getContext();
   OslScopSymbolTable symbolTable = initSymbolTable(ctx, scopStmtMap);

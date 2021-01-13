@@ -6,7 +6,7 @@
 #ifndef POLYMER_SUPPORT_OSLSCOP_H
 #define POLYMER_SUPPORT_OSLSCOP_H
 
-#include "polymer/Support/ScatUtils.h"
+#include "polymer/Support/ScatTree.h"
 #include "polymer/Support/ScopStmt.h"
 
 #include "osl/osl.h"
@@ -213,7 +213,8 @@ public:
   /// is the domain of the statement that this scattering relation is added to.
   /// ops are the enclosing affine.for of the current statement.
   void addScatteringRelation(int stmtId, const mlir::FlatAffineConstraints &cst,
-                             llvm::ArrayRef<mlir::Operation *> ops);
+                             llvm::ArrayRef<mlir::Operation *> ops,
+                             mlir::Operation *caller);
 
   /// Add the access relation to the target statement (given by stmtId).
   void addAccessRelation(int stmtId, bool isRead, mlir::Value memref,

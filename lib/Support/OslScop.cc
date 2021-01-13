@@ -476,10 +476,10 @@ static void getEqsFromScats(llvm::ArrayRef<unsigned> scats,
 
 void OslScop::addScatteringRelation(
     int stmtId, const mlir::FlatAffineConstraints &cst,
-    llvm::ArrayRef<mlir::Operation *> enclosingOps) {
+    llvm::ArrayRef<mlir::Operation *> enclosingOps, mlir::Operation *caller) {
   // First insert the enclosing ops into the scat tree.
   SmallVector<unsigned, 8> scats;
-  scatTreeRoot->insertPath(enclosingOps, scats);
+  scatTreeRoot->insertPath(enclosingOps, caller, scats);
 
   // Create equalities and inequalities.
   std::vector<int64_t> eqs, inEqs;

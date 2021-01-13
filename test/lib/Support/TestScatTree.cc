@@ -4,7 +4,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "polymer/Support/ScatUtils.h"
+#include "polymer/Support/ScatTree.h"
 
 #include <string>
 

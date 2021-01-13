@@ -24,9 +24,8 @@ class ScatTreeNodeImpl;
 /// variable or a statement. A statement is ALWAYS constructed as a leaf node.
 class ScatTreeNode {
 public:
+  /// Used to create a root node.
   ScatTreeNode();
-  ScatTreeNode(mlir::Value iv);
-
   ~ScatTreeNode();
 
   ScatTreeNode(ScatTreeNode &&);
@@ -34,18 +33,11 @@ public:
   ScatTreeNode &operator=(ScatTreeNode &&);
   ScatTreeNode &operator=(const ScatTreeNode &) = delete;
 
-  /// Create a new leaf node. The insertion point is traced by the path starting
-  /// from the current node, which is usually the root node, and followed by the
-  /// IVs of the given enclosing affine.for operations (ops). If any IV is
-  /// missing in the tree, we will insert a new one. The exact position of the
-  /// IV at each level will be inserted into the scats array.
-  void insertScopStmt(llvm::ArrayRef<mlir::Operation *> ops,
-                      llvm::SmallVectorImpl<unsigned> &scats);
-
   /// Get the depth of the tree starting from this node.
   unsigned getDepth() const;
 
   /// Insert one operation into the scat tree based on its enclosing affine.for.
+  void insertPath(mlir::Operation *op);
   void insertPath(mlir::Operation *op, llvm::SmallVectorImpl<unsigned> &scats);
 
   /// Insert a path of nodes into the scat tree based on the provided enclosing
@@ -53,7 +45,16 @@ public:
   /// affine.for provided in the given list of operations, then call the
   /// insertPath method.
   void insertPath(llvm::ArrayRef<mlir::Operation *> enclosingOps,
-                  llvm::SmallVectorImpl<unsigned> &scats);
+                  mlir::Operation *op);
+  void insertPath(llvm::ArrayRef<mlir::Operation *> enclosingOps,
+                  mlir::Operation *op, llvm::SmallVectorImpl<unsigned> &scats);
+
+  /// Iterate from the tree root to collect all the child IDs along the path.
+  void getPathIds(mlir::Operation *op,
+                  llvm::SmallVectorImpl<unsigned> &scats) const;
+  void getPathIds(llvm::ArrayRef<mlir::Operation *> enclosingOps,
+                  mlir::Operation *op,
+                  llvm::SmallVectorImpl<unsigned> &scats) const;
 
 private:
   std::unique_ptr<ScatTreeNodeImpl> impl;

@@ -3,7 +3,7 @@ add_mlir_library(PolymerSupport
   OslScopBuilder.cc
   OslScopStmtOpSet.cc
   OslSymbolTable.cc
-  ScatUtils.cc
+  ScatTree.cc
   ScopStmt.cc
 
   ADDITIONAL_HEADER_DIRS
