@@ -36,17 +36,16 @@ OslScopSymbolTable::getSymbolTable() const {
   return symbolTable;
 }
 
-llvm::StringRef OslScopSymbolTable::getSymbol(mlir::Value value) const {
-  return getSymbol(value, nullptr);
+llvm::StringRef OslScopSymbolTable::lookup(mlir::Value value) const {
+  return lookup(value, nullptr);
 }
 
-llvm::StringRef
-OslScopSymbolTable::getSymbol(mlir::Value value,
-                              unsigned *numSymbolsOfType) const {
-  if (getSymbolType(value) == SymbolType::NOT_A_SYMBOL)
+llvm::StringRef OslScopSymbolTable::lookup(mlir::Value value,
+                                           unsigned *numSymbolsOfType) const {
+  if (getType(value) == SymbolType::NOT_A_SYMBOL)
     return llvm::StringRef("");
 
-  llvm::StringRef prefix = getSymbolPrefix(value);
+  llvm::StringRef prefix = getPrefix(value);
   if (numSymbolsOfType != nullptr)
     *numSymbolsOfType = 0;
 
@@ -59,15 +58,25 @@ OslScopSymbolTable::getSymbol(mlir::Value value,
   return llvm::StringRef("");
 }
 
-llvm::StringRef OslScopSymbolTable::getOrCreateSymbol(mlir::Value value) {
-  if (getSymbolType(value) == SymbolType::NOT_A_SYMBOL)
+int64_t OslScopSymbolTable::lookupId(mlir::Value value) const {
+  llvm::StringRef symbol = lookup(value);
+  assert(!symbol.empty());
+
+  int64_t id;
+  dropPrefix(symbol, getType(value)).getAsInteger(64, id);
+
+  return id;
+}
+
+llvm::StringRef OslScopSymbolTable::lookupOrCreate(mlir::Value value) {
+  if (getType(value) == SymbolType::NOT_A_SYMBOL)
     return llvm::StringRef("");
 
   LLVM_DEBUG(llvm::dbgs() << "getOrCreateSymbol for value: " << value << "\n");
   unsigned numSymbolsOfType;
 
-  llvm::StringRef prefix = getSymbolPrefix(value);
-  llvm::StringRef foundSymbol = getSymbol(value, &numSymbolsOfType);
+  llvm::StringRef prefix = getPrefix(value);
+  llvm::StringRef foundSymbol = lookup(value, &numSymbolsOfType);
   if (!foundSymbol.empty())
     return foundSymbol;
 
@@ -85,7 +94,7 @@ llvm::StringRef OslScopSymbolTable::getOrCreateSymbol(mlir::Value value) {
 }
 
 llvm::StringRef
-OslScopSymbolTable::getSymbolPrefix(OslScopSymbolTable::SymbolType type) const {
+OslScopSymbolTable::getPrefix(OslScopSymbolTable::SymbolType type) {
   switch (type) {
   case MEMREF:
     return llvm::StringRef("A");
@@ -100,22 +109,21 @@ OslScopSymbolTable::getSymbolPrefix(OslScopSymbolTable::SymbolType type) const {
   }
 }
 
-llvm::StringRef OslScopSymbolTable::getSymbolPrefix(mlir::Value value) const {
-  return getSymbolPrefix(getSymbolType(value));
+llvm::StringRef OslScopSymbolTable::getPrefix(mlir::Value value) {
+  return getPrefix(getType(value));
 }
 
 OslScopSymbolTable::SymbolType
-OslScopSymbolTable::getSymbolType(llvm::StringRef symbol) const {
+OslScopSymbolTable::getType(llvm::StringRef symbol) {
   for (int i = MEMREF; i != CONSTANT; i++) {
     SymbolType type = static_cast<SymbolType>(i);
-    if (symbol.startswith(getSymbolPrefix(type)))
+    if (symbol.startswith(getPrefix(type)))
       return type;
   }
   return NOT_A_SYMBOL;
 }
 
-OslScopSymbolTable::SymbolType
-OslScopSymbolTable::getSymbolType(mlir::Value value) const {
+OslScopSymbolTable::SymbolType OslScopSymbolTable::getType(mlir::Value value) {
   if (mlir::isForInductionVar(value))
     return INDVAR;
   else if (value.getType().isa<mlir::MemRefType>())
@@ -127,6 +135,12 @@ OslScopSymbolTable::getSymbolType(mlir::Value value) const {
   else if (value.getDefiningOp<mlir::ConstantOp>())
     return CONSTANT;
   return NOT_A_SYMBOL;
+}
+
+llvm::StringRef OslScopSymbolTable::dropPrefix(llvm::StringRef symbol,
+                                               SymbolType type) {
+  llvm::StringRef prefix = getPrefix(type);
+  return symbol.drop_front(prefix.size());
 }
 
 /// ----------------------------- OslScopStmtMap ------------------------------

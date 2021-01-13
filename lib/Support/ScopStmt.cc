@@ -5,6 +5,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "polymer/Support/ScopStmt.h"
+#include "polymer/Support/OslScop.h"
 #include "polymer/Support/ScatTree.h"
 
 #include "mlir/Analysis/AffineAnalysis.h"
@@ -270,6 +271,14 @@ void ScopStmt::getScats(const ScatTreeNode &root,
   root.getPathIds(enclosingOps, getCaller(), scats);
 }
 
+void ScopStmt::getAccesses(
+    llvm::SmallVectorImpl<mlir::MemRefAccess> &accesses) const {
+  getCallee().walk([&](mlir::Operation *op) {
+    if (isa<mlir::AffineWriteOpInterface, mlir::AffineReadOpInterface>(op))
+      accesses.push_back(mlir::MemRefAccess(op));
+  });
+}
+
 static mlir::Value findBlockArg(mlir::Value v) {
   mlir::Value r = v;
   while (r != nullptr) {
@@ -286,6 +295,59 @@ static mlir::Value findBlockArg(mlir::Value v) {
   }
 
   return r;
+}
+
+void ScopStmt::getAccessMap(const MemRefAccess &access,
+                            AffineValueMap &vMap) const {
+  // Get the default access map.
+  access.getAccessMap(&vMap);
+
+  // Get caller/callee value mappings.
+  BlockAndValueMapping argMap;
+  impl->getArgsValueMapping(argMap);
+
+  // Replace the values in vMap by the caller operands.
+  // Initially, there are cases you cannot replace, e.g., a Value in the vMap is
+  // actually the result from an affine.apply, or it is a result from another
+  // operation in the callee. We will design additional passes to resolve these
+  // issues, and here we simply afssume that every value in vMap is from the
+  // callee's BlockArguments, and therefore, they can be replaced directly by
+  // the corresponding operands of the caller.
+  SmallVector<mlir::Value, 8> replacedOperands;
+  for (mlir::Value operand : vMap.getOperands()) {
+    assert(mlir::isTopLevelValue(operand) &&
+           "Operand of the access value map should be a top-level block "
+           "argument.");
+    replacedOperands.push_back(argMap.lookup(operand));
+  }
+
+  // Reset the values in vMap.
+  vMap.reset(vMap.getAffineMap(), replacedOperands);
+}
+
+void ScopStmt::getAccessConstraints(const mlir::MemRefAccess &access,
+                                    const OslScopSymbolTable &symbolTable,
+                                    mlir::FlatAffineConstraints &cst) const {
+  // Get caller/callee value mappings.
+  BlockAndValueMapping argMap;
+  impl->getArgsValueMapping(argMap);
+
+  // Get the affine value map for the access.
+  mlir::AffineValueMap vMap;
+  getAccessMap(access, vMap);
+
+  FlatAffineConstraints domain(getDomain()); // Copy of the original domain.
+  cst.reset();
+  cst.mergeAndAlignIdsWithOther(0, &domain);
+
+  // The results of the affine value map, which are the access addresses, will
+  // be placed to the leftmost of all columns.
+  cst.composeMap(&vMap);
+
+  // Add the memref equation.
+  mlir::Value memref = argMap.lookup(access.memref);
+  cst.addDimId(0, memref);
+  cst.setIdToConstant(0, symbolTable.lookupId(memref));
 }
 
 void ScopStmt::getAccessMapAndMemRef(mlir::Operation *op,

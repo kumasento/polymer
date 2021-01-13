@@ -45,23 +45,28 @@ public:
 
   /// Find symbol from the symbol table for the given Value.  Return an empty
   /// symbol if not found.
-  llvm::StringRef getSymbol(mlir::Value value) const;
-  llvm::StringRef getSymbol(mlir::Value value,
-                            unsigned *numSymbolsOfType) const;
+  llvm::StringRef lookup(mlir::Value value) const;
+  llvm::StringRef lookup(mlir::Value value, unsigned *numSymbolsOfType) const;
+
+  /// Return the found symbol without its prefix.
+  int64_t lookupId(mlir::Value) const;
 
   /// Find the symbol for the given Value. If not exists, create a new one based
   /// on the hardcoded rule.
-  llvm::StringRef getOrCreateSymbol(mlir::Value value);
+  llvm::StringRef lookupOrCreate(mlir::Value value);
 
   /// Get the symbol prefix ('A', 'i', 'P', etc.) based on the symbol type.
-  llvm::StringRef getSymbolPrefix(SymbolType type) const;
+  static llvm::StringRef getPrefix(SymbolType type);
   /// Get the symbol prefix ('A', 'i', 'P', etc.) based on the value type.
-  llvm::StringRef getSymbolPrefix(mlir::Value value) const;
+  static llvm::StringRef getPrefix(mlir::Value value);
 
   /// Get the symbol type based on the symbol content.
-  SymbolType getSymbolType(llvm::StringRef symbol) const;
+  static SymbolType getType(llvm::StringRef symbol);
   /// Get the symbol type based on the MLIR value.
-  SymbolType getSymbolType(mlir::Value value) const;
+  static SymbolType getType(mlir::Value value);
+
+  /// Remove the prefix and leave only the numerical part.
+  static llvm::StringRef dropPrefix(llvm::StringRef symbol, SymbolType type);
 
 private:
   Container symbolTable;
@@ -122,12 +127,15 @@ public:
       std::unique_ptr<osl_scop_t, decltype(osl_scop_free) *>;
 
   static constexpr const char *const SCOP_STMT_ATTR_NAME = "scop.stmt";
+  static constexpr const char *const SCOP_STMT_ACCESS_NAME = "scop.access";
+  static constexpr const char *const SCOP_STMT_ACCESS_SYMBOLS_NAME =
+      "scop.access_symbols";
+  static constexpr const char *const SCOP_STMT_SCATS_NAME = "scop.scats";
   static constexpr const char *const SCOP_IV_NAME_ATTR_NAME = "scop.iv_name";
   static constexpr const char *const SCOP_PARAM_NAMES_ATTR_NAME =
       "scop.param_names";
   static constexpr const char *const SCOP_ARG_NAMES_ATTR_NAME =
       "scop.arg_names";
-  static constexpr const char *const SCOP_STMT_SCATS_NAME = "scop.scats";
 
   enum SymbolType { NOT_A_SYMBOL, MEMREF, INDVAR, PARAMETER, CONSTANT };
 

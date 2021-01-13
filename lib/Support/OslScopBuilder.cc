@@ -8,6 +8,7 @@
 #include "polymer/Support/OslScopBuilder.h"
 #include "polymer/Support/OslScop.h"
 
+#include "mlir/Analysis/AffineAnalysis.h"
 #include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -67,7 +68,7 @@ static OslScopSymbolTable initSymbolTable(const FlatAffineConstraints &ctx,
   for (mlir::Value dim : dimValues) {
     assert(dim.isa<mlir::BlockArgument>() &&
            "Values being used as a dim should be a BlockArgument.");
-    symbolTable.getOrCreateSymbol(dim);
+    symbolTable.lookupOrCreate(dim);
   }
 
   // Initialize parameters.
@@ -75,7 +76,7 @@ static OslScopSymbolTable initSymbolTable(const FlatAffineConstraints &ctx,
     LLVM_DEBUG(llvm::dbgs() << "Initializing symbol for: " << sym << "\n");
     assert(mlir::isValidSymbol(sym) &&
            "Values being used as a symbol should be valid.");
-    symbolTable.getOrCreateSymbol(sym);
+    symbolTable.lookupOrCreate(sym);
   }
 
   // Initialize all arrays.
@@ -84,10 +85,10 @@ static OslScopSymbolTable initSymbolTable(const FlatAffineConstraints &ctx,
     LLVM_DEBUG(llvm::dbgs()
                << "Initializing arrays from caller: " << caller << "\n");
     for (mlir::Value arg : caller.getOperands()) {
-      LLVM_DEBUG(llvm::dbgs() << arg << " symbol type is: "
-                              << symbolTable.getSymbolType(arg));
-      if (symbolTable.getSymbolType(arg) == OslScopSymbolTable::MEMREF)
-        symbolTable.getOrCreateSymbol(arg);
+      LLVM_DEBUG(llvm::dbgs()
+                 << arg << " symbol type is: " << symbolTable.getType(arg));
+      if (symbolTable.getType(arg) == OslScopSymbolTable::MEMREF)
+        symbolTable.lookupOrCreate(arg);
     }
   }
 
@@ -103,7 +104,7 @@ static void setSymbolAttrs(mlir::FuncOp f,
   llvm::SmallVector<mlir::Attribute, 8> argNames;
   for (unsigned i = 0; i < f.getNumArguments(); i++) {
     mlir::Value arg = f.getArgument(i);
-    llvm::StringRef symbol = symbolTable.getSymbol(arg);
+    llvm::StringRef symbol = symbolTable.lookup(arg);
     argNames.push_back(StringAttr::get(symbol, f.getContext()));
   }
 
@@ -112,7 +113,7 @@ static void setSymbolAttrs(mlir::FuncOp f,
 
   // Set symbols for all induction variables in the function.
   f.walk([&](mlir::AffineForOp op) {
-    llvm::StringRef symbol = symbolTable.getSymbol(op.getInductionVar());
+    llvm::StringRef symbol = symbolTable.lookup(op.getInductionVar());
 
     op.setAttr(OslScop::SCOP_IV_NAME_ATTR_NAME,
                StringAttr::get(symbol, f.getContext()));
@@ -124,7 +125,7 @@ static void setSymbolAttrs(mlir::FuncOp f,
 
     bool hasNonEmptySymbol = false;
     for (mlir::Value result : op->getResults()) {
-      llvm::StringRef symbol = symbolTable.getSymbol(result);
+      llvm::StringRef symbol = symbolTable.lookup(result);
       symbols.push_back(StringAttr::get(symbol, f.getContext()));
       if (!symbol.empty())
         hasNonEmptySymbol = true;
@@ -147,7 +148,7 @@ static void setSymbolAttrs(mlir::FuncOp f,
                   &ctxSymValues);
   for (mlir::Value ctxSym : ctxSymValues)
     ctxParams.push_back(
-        StringAttr::get(symbolTable.getSymbol(ctxSym), f.getContext()));
+        StringAttr::get(symbolTable.lookup(ctxSym), f.getContext()));
   f.setAttr("scop.ctx_params", ArrayAttr::get(ctxParams, f.getContext()));
 }
 
@@ -166,6 +167,42 @@ static void setScatTreeAttrs(const OslScopStmtMap &sMap,
           IntegerAttr::get(IntegerType::get(64, caller.getContext()), id));
     caller.setAttr(OslScop::SCOP_STMT_SCATS_NAME,
                    ArrayAttr::get(scatsAttr, caller.getContext()));
+  }
+}
+
+/// Set the attribute that represents the access constraints for each operation
+/// in each ScopStmt.
+static void setAccessAttrs(const OslScopStmtMap &sm,
+                           const OslScopSymbolTable &st,
+                           const FlatAffineConstraints &ctx) {
+  for (const auto &key : sm.getKeys()) {
+    const ScopStmt &s = sm.lookup(key);
+    llvm::SmallVector<mlir::MemRefAccess, 8> acs;
+    s.getAccesses(acs);
+
+    for (const mlir::MemRefAccess &ac : acs) {
+      FlatAffineConstraints cst;
+      s.getAccessConstraints(ac, st, cst);
+
+      mlir::Operation *op = ac.opInst;
+      IntegerSet iset = cst.getAsIntegerSet(op->getContext());
+      op->setAttr(OslScop::SCOP_STMT_ACCESS_NAME, IntegerSetAttr::get(iset));
+
+      llvm::SmallVector<mlir::Attribute, 8> symbolAttrs;
+      for (unsigned i = 0; i < cst.getNumDimAndSymbolIds(); i++) {
+        Optional<mlir::Value> id = cst.getId(i);
+        if (id.hasValue()) {
+          mlir::Value value = id.getValue();
+          symbolAttrs.push_back(
+              StringAttr::get(st.lookup(value), op->getContext()));
+        } else {
+          symbolAttrs.push_back(StringAttr::get("", op->getContext()));
+        }
+      }
+
+      op->setAttr(OslScop::SCOP_STMT_ACCESS_SYMBOLS_NAME,
+                  ArrayAttr::get(symbolAttrs, op->getContext()));
+    }
   }
 }
 
@@ -193,6 +230,7 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
 
   setSymbolAttrs(f, symbolTable, ctx);
   setScatTreeAttrs(scopStmtMap, scatTreeRoot);
+  setAccessAttrs(scopStmtMap, symbolTable, ctx);
 
   return scop;
 }

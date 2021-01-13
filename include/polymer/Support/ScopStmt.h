@@ -18,12 +18,14 @@ class AffineValueMap;
 class FuncOp;
 class CallOp;
 class Value;
+struct MemRefAccess;
 } // namespace mlir
 
 namespace polymer {
 
 class ScatTreeNode;
 class ScopStmtImpl;
+class OslScopSymbolTable;
 
 /// Class that stores all the essential information for a Scop statement,
 /// including the MLIR operations and Scop relations (represented by
@@ -60,6 +62,23 @@ public:
   /// triggered.
   void getScats(const ScatTreeNode &root,
                 llvm::SmallVectorImpl<unsigned> &scats) const;
+
+  /// Get a list of operations that has memref access.
+  void getAccesses(llvm::SmallVectorImpl<mlir::MemRefAccess> &accesses) const;
+
+  /// Get AffineValueMap of the access, with its values replaced by the caller's
+  /// arguments instead of using those in the callee.
+  void getAccessMap(const mlir::MemRefAccess &access,
+                    mlir::AffineValueMap &vMap) const;
+
+  /// Get the affine constraints form of the access. We will compose the
+  /// constraints by the AffineValueMap we get from getAccessMap, and the domain
+  /// constraints. The columns of the access constraints and the domain are
+  /// aligned. One additional memref value will be placed at the beginning of
+  /// all dim values.
+  void getAccessConstraints(const mlir::MemRefAccess &access,
+                            const OslScopSymbolTable &symbolTable,
+                            mlir::FlatAffineConstraints &cst) const;
 
   /// Get the access AffineValueMap of an op in the callee and the memref in the
   /// caller scope that this op is using.
