@@ -25,6 +25,25 @@ using namespace polymer;
 using namespace mlir;
 using namespace llvm;
 
+static void mergeAndAlignSymbols(FlatAffineConstraints &cstA,
+                                 const FlatAffineConstraints &cstB) {
+  llvm::SmallVector<mlir::Value, 8> symbols;
+  cstB.getIdValues(cstB.getNumDimIds(), cstB.getNumDimAndSymbolIds(), &symbols);
+
+  for (unsigned i = 0; i < symbols.size(); i++) {
+    unsigned posA;
+
+    mlir::Value valB = symbols[i];
+    if (cstA.findId(valB, &posA)) {
+      if (posA == i + cstA.getNumDimIds())
+        continue;
+      cstA.swapId(posA, i + cstA.getNumDimIds());
+    } else {
+      cstA.addSymbolId(i, valB);
+    }
+  }
+}
+
 /// Find all CallOp and FuncOp pairs with scop.stmt attribute in the given
 /// module and insert them into the OslScop.
 static void findAndInsertScopStmts(mlir::FuncOp f,
@@ -152,6 +171,37 @@ static void setSymbolAttrs(mlir::FuncOp f,
   f.setAttr("scop.ctx_params", ArrayAttr::get(ctxParams, f.getContext()));
 }
 
+static void setDomainAttrs(const OslScopStmtMap &sm,
+                           const OslScopSymbolTable &st,
+                           const FlatAffineConstraints &ctx) {
+  for (const auto &key : sm.getKeys()) {
+    const ScopStmt &s = sm.lookup(key);
+    FlatAffineConstraints domain(s.getDomain());
+
+    mergeAndAlignSymbols(domain, ctx);
+
+    mlir::CallOp caller = s.getCaller();
+    IntegerSet iset = domain.getAsIntegerSet(caller.getContext());
+
+    caller.setAttr(OslScop::SCOP_STMT_DOMAIN_NAME, IntegerSetAttr::get(iset));
+
+    llvm::SmallVector<mlir::Attribute, 8> symbolAttrs;
+    for (unsigned i = 0; i < domain.getNumDimAndSymbolIds(); i++) {
+      Optional<mlir::Value> id = domain.getId(i);
+      if (id.hasValue()) {
+        mlir::Value value = id.getValue();
+        symbolAttrs.push_back(
+            StringAttr::get(st.lookup(value), caller.getContext()));
+      } else {
+        symbolAttrs.push_back(StringAttr::get("", caller.getContext()));
+      }
+    }
+
+    caller.setAttr(OslScop::SCOP_STMT_DOMAIN_SYMBOLS_NAME,
+                   ArrayAttr::get(symbolAttrs, caller.getContext()));
+  }
+}
+
 static void setScatTreeAttrs(const OslScopStmtMap &sMap,
                              const ScatTreeNode &root) {
   for (const auto &key : sMap.getKeys()) {
@@ -183,6 +233,7 @@ static void setAccessAttrs(const OslScopStmtMap &sm,
     for (const mlir::MemRefAccess &ac : acs) {
       FlatAffineConstraints cst;
       s.getAccessConstraints(ac, st, cst);
+      mergeAndAlignSymbols(cst, ctx);
 
       mlir::Operation *op = ac.opInst;
       IntegerSet iset = cst.getAsIntegerSet(op->getContext());
@@ -229,6 +280,7 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
   OslScopSymbolTable symbolTable = initSymbolTable(ctx, scopStmtMap);
 
   setSymbolAttrs(f, symbolTable, ctx);
+  setDomainAttrs(scopStmtMap, symbolTable, ctx);
   setScatTreeAttrs(scopStmtMap, scatTreeRoot);
   setAccessAttrs(scopStmtMap, symbolTable, ctx);
 

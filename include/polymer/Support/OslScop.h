@@ -127,6 +127,9 @@ public:
       std::unique_ptr<osl_scop_t, decltype(osl_scop_free) *>;
 
   static constexpr const char *const SCOP_STMT_ATTR_NAME = "scop.stmt";
+  static constexpr const char *const SCOP_STMT_DOMAIN_NAME = "scop.domain";
+  static constexpr const char *const SCOP_STMT_DOMAIN_SYMBOLS_NAME =
+      "scop.domain_symbols";
   static constexpr const char *const SCOP_STMT_ACCESS_NAME = "scop.access";
   static constexpr const char *const SCOP_STMT_ACCESS_SYMBOLS_NAME =
       "scop.access_symbols";

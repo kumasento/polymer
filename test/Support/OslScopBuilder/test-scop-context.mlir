@@ -1,6 +1,6 @@
 // RUN: polymer-opt %s -test-osl-scop-builder -verify-diagnostics -split-input-file | FileCheck %s
 
-// CHECK: #set = affine_set<() : (0 == 0)>
+// CHECK: #{{.*}} = affine_set<() : (0 == 0)>
 // CHECK-LABEL: func @test_empty_context()
 func @test_empty_context() {
   // expected-remark@above {{Has OslScop: true}}
@@ -17,7 +17,7 @@ func @S0() attributes { scop.stmt } {
 
 // -----
 
-// CHECK: #set = affine_set<()[s0] : (s0 - 1 >= 0)>
+// CHECK: #{{.*}} = affine_set<()[s0] : (s0 - 1 >= 0)>
 // CHECK: func @test_ctx_wp
 func @test_ctx_wp(%N: index) {
   // expected-remark@above {{Has OslScop: true}}
@@ -34,10 +34,10 @@ func @S0() attributes { scop.stmt } {
 
 // -----
 
-// CHECK: #set = affine_set<()[s0, s1, s2] : (s1 - 1 >= 0, s0 - 1 >= 0, s2 - 1 >= 0)>
+// CHECK: #[[SET:.*]] = affine_set<()[s0, s1, s2] : (s1 - 1 >= 0, s0 - 1 >= 0, s2 - 1 >= 0)>
 // CHECK: func @test_ctx_multi_domains({{.*}}) attributes {
 // CHECK-SAME: scop.arg_names = ["P0", "P1", "P2"],
-// CHECK-SAME: scop.ctx = #set,
+// CHECK-SAME: scop.ctx = #[[SET]],
 // CHECK-SAME: scop.ctx_params = ["P0", "P1", "P2"]}
 func @test_ctx_multi_domains(%N: index, %M: index, %K: index) {
   // expected-remark@above {{Has OslScop: true}}
