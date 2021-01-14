@@ -261,9 +261,7 @@ static void getConstraintRows(const FlatAffineConstraints &cst,
 }
 
 OslScop::OslScop()
-    : scop(osl_scop_unique_ptr{osl_scop_malloc(), osl_scop_free}),
-      scatTreeRoot(std::make_unique<ScatTreeNode>()) {
-
+    : scop(osl_scop_unique_ptr{osl_scop_malloc(), osl_scop_free}) {
   // Additional setup for the language and registry.
   OSL_strdup(scop->language, "C");
   // Use the default interface registry
@@ -273,54 +271,11 @@ OslScop::OslScop()
 
 OslScop::~OslScop() {}
 
-void OslScop::initialize() {
-  // Get the context constraints from the statements in OslScop.
-  FlatAffineConstraints ctx;
-  getContextConstraints(ctx);
-
-  // Then we use it with the function to initialize the symbol table.
-  initSymbolTable(ctx);
-}
-
 void OslScop::print(FILE *fp) const { osl_scop_print(fp, scop.get()); }
 
 bool OslScop::validate() const {
   // TODO: do we need to check the scoplib compatibility?
   return osl_scop_integrity_check(scop.get());
-}
-
-/// --------------------------- ScopStmtMap ------------------------------------
-
-const OslScop::ScopStmtMap &OslScop::getScopStmtMap() const {
-  return scopStmtMap;
-}
-
-void OslScop::addScopStmt(mlir::CallOp caller, mlir::FuncOp callee) {
-  llvm::StringRef symbol = callee.getName();
-  auto result =
-      scopStmtMap.insert(std::make_pair(symbol, ScopStmt(caller, callee)));
-
-  // Here we use the StringRef to the key in the map, which will be persist
-  // during the lifespan of OslScop.
-  scopStmtSymbols.push_back(result.first->first());
-}
-
-void OslScop::getContextConstraints(mlir::FlatAffineConstraints &ctx) const {
-  ctx.reset();
-
-  // Union with the domains of all Scop statements. We first merge and align the
-  // IDs of the context and the domain of the scop statement, and then append
-  // the constraints from the domain to the context. Note that we don't want to
-  // mess up with the original domain at this point. Trivial redundant
-  // constraints will be removed.
-  for (const auto &it : scopStmtMap) {
-    const FlatAffineConstraints &domain = it.second.getDomain();
-    FlatAffineConstraints cst(domain);
-
-    ctx.mergeAndAlignIdsWithOther(0, &cst);
-    ctx.append(cst);
-    ctx.removeRedundantConstraints();
-  }
 }
 
 /// --------------------------- Statements -------------------------------------
@@ -501,6 +456,7 @@ static void getEqsFromScats(llvm::ArrayRef<unsigned> scats,
 void OslScop::addScatteringRelation(
     int stmtId, const mlir::FlatAffineConstraints &cst,
     llvm::ArrayRef<mlir::Operation *> enclosingOps, mlir::Operation *caller) {
+#if 0
   // First insert the enclosing ops into the scat tree.
   SmallVector<unsigned, 8> scats;
   scatTreeRoot->insertPath(enclosingOps, caller, scats);
@@ -516,6 +472,7 @@ void OslScop::addScatteringRelation(
   ::addRelation(stmtId + 1, OSL_TYPE_SCATTERING, numScatEqs, numScatCols,
                 numScatEqs, cst.getNumDimIds(), cst.getNumLocalIds(),
                 cst.getNumSymbolIds(), eqs, inEqs, scop);
+#endif
 }
 
 /// Use FlatAffineConstraints to represent the access relation, given by the
@@ -550,6 +507,7 @@ static void getAccessRelationConstraints(mlir::AffineValueMap &vMap,
 void OslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
                                 mlir::AffineValueMap &vMap,
                                 FlatAffineConstraints &domain) {
+#if 0 
   FlatAffineConstraints cst;
 
   // Create a new dim of memref and set its value to its corresponding ID.
@@ -575,6 +533,7 @@ void OslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
                 cst.getNumConstraints(), cst.getNumCols() + 1, numOutputDims,
                 numInputDims, cst.getNumLocalIds(), cst.getNumSymbolIds(), eqs,
                 inEqs, scop);
+#endif
 }
 
 /// --------------------------- Extensions ------------------------------------
@@ -628,30 +587,6 @@ void OslScop::addStatementGeneric(int stmtId, llvm::StringRef tag,
   ::addGeneric(stmtId + 1, tag, content, scop);
 }
 
-/// We determine whether the name refers to a symbol by looking up the parameter
-/// list of the scop.
-bool OslScop::isSymbol(llvm::StringRef name) {
-  osl_generic_p parameters = scop->parameters;
-  if (!parameters)
-    return false;
-
-  assert(parameters->next == NULL &&
-         "Should only exist one parameters generic object.");
-  assert(osl_generic_has_URI(parameters, OSL_URI_STRINGS) &&
-         "Parameters should be of strings interface.");
-
-  // TODO: cache this result, otherwise we need O(N) each time calling this API.
-  osl_strings_p parameterNames =
-      reinterpret_cast<osl_strings_p>(parameters->data);
-  unsigned numParameters = osl_strings_size(parameterNames);
-
-  for (unsigned i = 0; i < numParameters; i++)
-    if (name.equals(parameterNames->string[i]))
-      return true;
-
-  return false;
-}
-
 osl_generic_p OslScop::getExtension(llvm::StringRef tag) const {
   osl_generic_p ext = scop->extension;
   osl_interface_p interface = osl_interface_lookup(scop->registry, tag.data());
@@ -666,6 +601,7 @@ osl_generic_p OslScop::getExtension(llvm::StringRef tag) const {
 }
 
 void OslScop::addParameterNamesFromSymbolTable() {
+#if 0
   std::string body;
   llvm::raw_string_ostream ss(body);
 
@@ -682,9 +618,11 @@ void OslScop::addParameterNamesFromSymbolTable() {
     ss << s << " ";
 
   addParametersGeneric("strings", body);
+#endif
 }
 
 void OslScop::addScatnamesExtensionFromScatTree() {
+#if 0
   std::string body;
   llvm::raw_string_ostream ss(body);
 
@@ -694,9 +632,11 @@ void OslScop::addScatnamesExtensionFromScatTree() {
     ss << "c" << (i + 1) << " ";
 
   addExtensionGeneric("scatnames", body);
+#endif
 }
 
 void OslScop::addArraysExtensionFromSymbolTable() {
+#if 0
   std::string body;
   llvm::raw_string_ostream ss(body);
 
@@ -710,6 +650,7 @@ void OslScop::addArraysExtensionFromSymbolTable() {
 
   std::string fullBody = std::to_string(numArraySymbols) + body;
   addExtensionGeneric("arrays", fullBody);
+#endif
 }
 
 void OslScop::addBodyExtension(int stmtId, const ScopStmt &stmt) {
@@ -761,140 +702,4 @@ void OslScop::addBodyExtension(int stmtId, const ScopStmt &stmt) {
   // ss << ")";
 
   // addGeneric(stmtId + 1, "body", body);
-}
-
-/// --------------------------- Symbol Table ----------------------------------
-
-const OslScop::SymbolTable &OslScop::getSymbolTable() const {
-  return symbolTable;
-}
-
-llvm::StringRef OslScop::getSymbol(mlir::Value value) const {
-  return getSymbol(value, nullptr);
-}
-
-llvm::StringRef OslScop::getSymbol(mlir::Value value,
-                                   unsigned *numSymbolsOfType) const {
-  if (getSymbolType(value) == SymbolType::NOT_A_SYMBOL)
-    return llvm::StringRef("");
-
-  llvm::StringRef prefix = getSymbolPrefix(value);
-  if (numSymbolsOfType != nullptr)
-    *numSymbolsOfType = 0;
-
-  for (const auto &it : symbolTable) {
-    if (numSymbolsOfType != nullptr && it.first().startswith(prefix))
-      (*numSymbolsOfType)++;
-    if (it.second == value)
-      return it.first();
-  }
-  return llvm::StringRef("");
-}
-
-llvm::StringRef OslScop::getOrCreateSymbol(mlir::Value value) {
-  if (getSymbolType(value) == SymbolType::NOT_A_SYMBOL)
-    return llvm::StringRef("");
-
-  LLVM_DEBUG(llvm::dbgs() << "getOrCreateSymbol for value: " << value << "\n");
-  unsigned numSymbolsOfType;
-
-  llvm::StringRef prefix = getSymbolPrefix(value);
-  llvm::StringRef foundSymbol = getSymbol(value, &numSymbolsOfType);
-  if (!foundSymbol.empty())
-    return foundSymbol;
-
-  /// If the symbol doesn't exist, we create a new one following the
-  /// corresponding prefix and an integral ID that is increased every creation.
-  std::string symbol = prefix.str() + std::to_string(numSymbolsOfType);
-  LLVM_DEBUG(llvm::dbgs() << "Symbol created: " << symbol << "\n");
-
-  auto result = symbolTable.insert(std::make_pair(symbol, value));
-  assert(result.second && "Insertion of the new symbol should be successful.");
-
-  // We return the ref to the key stored in the StringMap, instead of the
-  // temporary string object created here.
-  return result.first->first();
-}
-
-llvm::StringRef OslScop::getSymbolPrefix(OslScop::SymbolType type) const {
-
-  switch (type) {
-  case MEMREF:
-    return llvm::StringRef("A");
-  case INDVAR:
-    return llvm::StringRef("i");
-  case PARAMETER:
-    return llvm::StringRef("P");
-  case CONSTANT:
-    return llvm::StringRef("C");
-  default:
-    assert(false && "Given type doesn't have a corresponding prefix.");
-  }
-}
-
-llvm::StringRef OslScop::getSymbolPrefix(mlir::Value value) const {
-  return getSymbolPrefix(getSymbolType(value));
-}
-
-OslScop::SymbolType OslScop::getSymbolType(llvm::StringRef symbol) const {
-  for (int i = MEMREF; i != CONSTANT; i++) {
-    SymbolType type = static_cast<SymbolType>(i);
-    if (symbol.startswith(getSymbolPrefix(type)))
-      return type;
-  }
-  return NOT_A_SYMBOL;
-}
-
-OslScop::SymbolType OslScop::getSymbolType(mlir::Value value) const {
-  if (mlir::isForInductionVar(value))
-    return INDVAR;
-  else if (value.getType().isa<mlir::MemRefType>())
-    return MEMREF;
-  // TODO: it is likely that more values will be marked as parameters than
-  // expected. Not sure whether this could cause any correctness issues.
-  else if (mlir::isValidSymbol(value))
-    return PARAMETER;
-  else if (value.getDefiningOp<mlir::ConstantOp>())
-    return CONSTANT;
-  return NOT_A_SYMBOL;
-}
-
-void OslScop::initSymbolTable(const mlir::FlatAffineConstraints &ctx) {
-  symbolTable.clear();
-
-  llvm::SmallVector<mlir::Value, 8> dimValues, symValues;
-
-  ctx.getIdValues(0, ctx.getNumDimIds(), &dimValues);
-  ctx.getIdValues(ctx.getNumDimIds(), ctx.getNumDimAndSymbolIds(), &symValues);
-
-  LLVM_DEBUG(llvm::dbgs() << "Num dim values: " << dimValues.size() << "\n");
-  LLVM_DEBUG(llvm::dbgs() << "Num symbol values: " << symValues.size() << "\n");
-
-  // Initialize loop induction variables.
-  for (mlir::Value dim : dimValues) {
-    assert(dim.isa<mlir::BlockArgument>() &&
-           "Values being used as a dim should be a BlockArgument.");
-    getOrCreateSymbol(dim);
-  }
-
-  // Initialize parameters.
-  for (mlir::Value sym : symValues) {
-    LLVM_DEBUG(llvm::dbgs() << "Initializing symbol for: " << sym << "\n");
-    assert(mlir::isValidSymbol(sym) &&
-           "Values being used as a symbol should be valid.");
-    getOrCreateSymbol(sym);
-  }
-
-  // Initialize all arrays.
-  for (const auto &it : scopStmtMap) {
-    mlir::CallOp caller = it.second.getCaller();
-    LLVM_DEBUG(llvm::dbgs()
-               << "Initializing arrays from caller: " << caller << "\n");
-    for (mlir::Value arg : caller.getOperands()) {
-      LLVM_DEBUG(llvm::dbgs()
-                 << arg << " symbol type is: " << getSymbolType(arg));
-      if (getSymbolType(arg) == SymbolType::MEMREF)
-        getOrCreateSymbol(arg);
-    }
-  }
 }

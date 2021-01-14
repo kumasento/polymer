@@ -145,7 +145,7 @@ AffineExprBuilder::process(clast_expr *expr,
 LogicalResult
 AffineExprBuilder::process(clast_name *expr,
                            llvm::SmallVectorImpl<AffineExpr> &affExprs) {
-  if (scop->isSymbol(expr->name)) {
+  if (llvm::StringRef(expr->name).startswith("P")) {
     affExprs.push_back(b.getAffineSymbolExpr(symbolNames.size()));
     symbolNames.push_back(expr->name);
   } else if (auto iv = symTable->getValue(expr->name)) {

@@ -145,32 +145,16 @@ public:
 private:
   /// The osl_scop object being managed.
   osl_scop_unique_ptr scop;
-  /// The symbol table that maps from symbols in the OpenScop (e.g., scatnames,
-  /// array), to the corresponding mlir::Value.
-  SymbolTable symbolTable;
-  /// Root to the scattering tree.
-  std::unique_ptr<ScatTreeNode> scatTreeRoot;
-  /// Mapping between ScopStmts and their symbols.
-  ScopStmtMap scopStmtMap;
-  /// Keep the ScopStmt symbols in their discovery order.
-  llvm::SmallVector<llvm::StringRef, 8> scopStmtSymbols;
 
 public:
   OslScop();
-  OslScop(osl_scop *scop)
-      : scop(osl_scop_unique_ptr{scop, osl_scop_free}),
-        scatTreeRoot(std::make_unique<ScatTreeNode>()) {}
-  OslScop(osl_scop_unique_ptr scop)
-      : scop(std::move(scop)), scatTreeRoot(std::make_unique<ScatTreeNode>()) {}
+  OslScop(osl_scop *scop) : scop(osl_scop_unique_ptr{scop, osl_scop_free}) {}
+  OslScop(osl_scop_unique_ptr scop) : scop(std::move(scop)) {}
 
   OslScop(const OslScop &) = delete;
   OslScop &operator=(const OslScop &) = delete;
 
   ~OslScop();
-
-  /// Initialize the internal data structures. You should only call this once
-  /// all ScopStmts are inserted into the scopStmtMap.
-  void initialize();
 
   /// Get the raw scop pointer.
   osl_scop *get() { return scop.get(); }
@@ -181,21 +165,6 @@ public:
   /// Validate whether the scop is well-formed. This will call the
   /// osl_scop_integrity_check function from OpenScop.
   bool validate() const;
-
-  /// ------------------------- ScopStmtMap ------------------------------------
-
-  /// Return a const reference to the internal scopStmtMap data.
-  const ScopStmtMap &getScopStmtMap() const;
-
-  /// Add a ScopStmt into the map. A new entry will be initialized in
-  /// scopStmtMap and its symbol will be appended to scopStmtSymbols.
-  void addScopStmt(mlir::CallOp caller, mlir::FuncOp callee);
-
-  /// Build context constraints from the scopStmtMap. The context is basically a
-  /// union of all domain constraints. Its ID values will be used to derive the
-  /// symbol table. Its constraints, however, can only be used once we project
-  /// out all the dim values, i.e., just leave the constraints only on symbols.
-  void getContextConstraints(mlir::FlatAffineConstraints &ctx) const;
 
   /// ------------------------- Statements -------------------------------------
 
@@ -261,9 +230,6 @@ public:
   void addStatementGeneric(int stmtId, llvm::StringRef tag,
                            llvm::StringRef content);
 
-  /// Check whether the name refers to a symbol.
-  bool isSymbol(llvm::StringRef name);
-
   /// Get extension by the tag name. tag can be strings like "body", "array",
   /// etc. This function goes through the whole scop to find is there an
   /// extension that matches the tag.
@@ -282,35 +248,6 @@ public:
 
   /// Add the <body> extension content from the given ScopStmt object.
   void addBodyExtension(int stmtId, const ScopStmt &stmt);
-
-  /// ------------------------- Symbol Table ----------------------------------
-
-  /// Get a const reference to the symbol table.
-  const SymbolTable &getSymbolTable() const;
-
-  /// Find symbol from the symbol table for the given Value.  Return an empty
-  /// symbol if not found.
-  llvm::StringRef getSymbol(mlir::Value value) const;
-  llvm::StringRef getSymbol(mlir::Value value,
-                            unsigned *numSymbolsOfType) const;
-
-  /// Find the symbol for the given Value. If not exists, create a new one based
-  /// on the hardcoded rule.
-  llvm::StringRef getOrCreateSymbol(mlir::Value value);
-
-  /// Get the symbol prefix ('A', 'i', 'P', etc.) based on the symbol type.
-  llvm::StringRef getSymbolPrefix(SymbolType type) const;
-  /// Get the symbol prefix ('A', 'i', 'P', etc.) based on the value type.
-  llvm::StringRef getSymbolPrefix(mlir::Value value) const;
-
-  /// Get the symbol type based on the symbol content.
-  SymbolType getSymbolType(llvm::StringRef symbol) const;
-  /// Get the symbol type based on the MLIR value.
-  SymbolType getSymbolType(mlir::Value value) const;
-
-  /// Initialize symbol table. Parameters and induction variables can be found
-  /// from the context (ctx) derived from scopStmtMap.
-  void initSymbolTable(const mlir::FlatAffineConstraints &ctx);
 };
 
 } // namespace polymer
