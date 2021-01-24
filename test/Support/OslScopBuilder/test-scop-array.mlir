@@ -3,7 +3,7 @@
 // Test whether arrays can be extracted and annotated with symbols.
 
 // CHECK-LABEL: func @test_single_array_in_args
-// CHECK: scop.arg_names = ["A0"]
+// CHECK: scop.arg_names = ["A1"]
 func @test_single_array_in_args(%A: memref<10xf32>) {
   // expected-remark@above {{Has OslScop: true}}
   affine.for %i =0 to 10 {

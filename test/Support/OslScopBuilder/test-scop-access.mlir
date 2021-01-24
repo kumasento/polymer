@@ -1,4 +1,4 @@
-// RUN: polymer-opt %s -test-osl-scop-builder -verify-diagnostics -split-input-file | FileCheck %s
+// RUN: polymer-opt %s -test-osl-scop-builder  -split-input-file | FileCheck %s
 
 // Test how the access constraints are resolved.
 
@@ -13,7 +13,7 @@ func private @S0() attributes {scop.stmt}
 
 // -----
 
-// CHECK: #{{.*}} = affine_set<(d0, d1, d2)[s0] : (d1 - d2 == 0, d0 == 0)>
+// CHECK: #{{.*}} = affine_set<(d0, d1, d2)[s0] : (d1 - d2 == 0, d0 - 1 == 0)>
 // CHECK-LABEL: func @identity_address
 func @identity_address(%A: memref<?xf32>) {
   // expected-remark@above {{Has OslScop: true}}
@@ -35,8 +35,8 @@ func private @S0(%A: memref<?xf32>, %i: index) attributes {scop.stmt} {
 
 // -----
 
-// CHECK: #{{.*}} = affine_set<(d0, d1, d2)[s0] : (d1 - d2 == 0, d0 == 0)>
 // CHECK: #{{.*}} = affine_set<(d0, d1, d2)[s0] : (d1 - d2 == 0, d0 - 1 == 0)>
+// CHECK: #{{.*}} = affine_set<(d0, d1, d2)[s0] : (d1 - d2 == 0, d0 - 2 == 0)>
 // CHECK-LABEL: func @multi_memrefs
 func @multi_memrefs(%A: memref<?xf32>, %B: memref<?xf32>) {
   // expected-remark@above {{Has OslScop: true}}
@@ -61,8 +61,8 @@ func private @S0(%A: memref<?xf32>, %B: memref<?xf32>, %i: index) attributes {sc
 
 // Different domains.
 
-// CHECK: #{{.*}} = affine_set<(d0, d1, d2)[s0] : (d1 - d2 == 0, d0 == 0)>
 // CHECK: #{{.*}} = affine_set<(d0, d1, d2)[s0] : (d1 - d2 == 0, d0 - 1 == 0)>
+// CHECK: #{{.*}} = affine_set<(d0, d1, d2)[s0] : (d1 - d2 == 0, d0 - 2 == 0)>
 // CHECK-LABEL: func @multi_domains
 func @multi_domains(%A: memref<?xf32>, %B: memref<?xf32>) {
   // expected-remark@above {{Has OslScop: true}}
@@ -82,18 +82,18 @@ func @multi_domains(%A: memref<?xf32>, %B: memref<?xf32>) {
 
 // CHECK-LABEL: @S0
 func private @S0(%A: memref<?xf32>, %B: memref<?xf32>, %i: index) attributes {scop.stmt} {
-  // CHECK: scop.access_symbols = ["A0", "", "i0", "P0"]
+  // CHECK: scop.access_symbols = ["A1", "", "i1", "P1"]
   %0 = affine.load %A[%i] : memref<?xf32>
-  // CHECK: scop.access_symbols = ["A1", "", "i0", "P0"]
+  // CHECK: scop.access_symbols = ["A2", "", "i1", "P1"]
   affine.store %0, %B[%i] : memref<?xf32>
 
   return
 }
 
 func private @S1(%A: memref<?xf32>, %B: memref<?xf32>, %i: index) attributes {scop.stmt} {
-  // CHECK: scop.access_symbols = ["A0", "", "i1", "P0"]
+  // CHECK: scop.access_symbols = ["A1", "", "i2", "P1"]
   %0 = affine.load %A[%i] : memref<?xf32>
-  // CHECK: scop.access_symbols = ["A1", "", "i1", "P0"]
+  // CHECK: scop.access_symbols = ["A2", "", "i2", "P1"]
   affine.store %0, %B[%i] : memref<?xf32>
 
   return
@@ -103,8 +103,8 @@ func private @S1(%A: memref<?xf32>, %B: memref<?xf32>, %i: index) attributes {sc
 
 // Multi dimensional.
 
-// CHECK: #{{.*}} = affine_set<(d0, d1, d2, d3)[s0, s1] : (d1 - d2 == 0, d0 == 0)>
-// CHECK: #{{.*}} = affine_set<(d0, d1, d2, d3, d4)[s0, s1] : (d1 - d3 == 0, d2 - d4 == 0, d0 - 1 == 0)>
+// CHECK: #{{.*}} = affine_set<(d0, d1, d2, d3)[s0, s1] : (d1 - d2 == 0, d0 - 1 == 0)>
+// CHECK: #{{.*}} = affine_set<(d0, d1, d2, d3, d4)[s0, s1] : (d1 - d3 == 0, d2 - d4 == 0, d0 - 2 == 0)>
 // CHECK-LABEL: @multi_dims
 func @multi_dims(%A: memref<?xf32>, %B: memref<?x?xf32>) {
   // expected-remark@above {{Has OslScop: true}}
@@ -125,9 +125,9 @@ func @multi_dims(%A: memref<?xf32>, %B: memref<?x?xf32>) {
 
 // CHECK-LABEL: @S0
 func private @S0(%A: memref<?xf32>, %B: memref<?x?xf32>, %i: index, %j: index) attributes {scop.stmt} {
-  // CHECK: scop.access_symbols = ["A0", "", "i0", "i1", "P0", "P1"]
+  // CHECK: scop.access_symbols = ["A1", "", "i1", "i2", "P1", "P2"]
   %0 = affine.load %A[%i] : memref<?xf32>
-  // CHECK: scop.access_symbols = ["A1", "", "", "i0", "i1", "P0", "P1"]
+  // CHECK: scop.access_symbols = ["A2", "", "", "i1", "i2", "P1", "P2"]
   affine.store %0, %B[%i, %j] : memref<?x?xf32>
 
   return

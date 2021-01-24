@@ -36,9 +36,9 @@ func @S0() attributes { scop.stmt } {
 
 // CHECK: #[[SET:.*]] = affine_set<()[s0, s1, s2] : (s1 - 1 >= 0, s0 - 1 >= 0, s2 - 1 >= 0)>
 // CHECK: func @test_ctx_multi_domains({{.*}}) attributes {
-// CHECK-SAME: scop.arg_names = ["P0", "P1", "P2"],
+// CHECK-SAME: scop.arg_names = ["P1", "P2", "P3"],
 // CHECK-SAME: scop.ctx = #[[SET]],
-// CHECK-SAME: scop.ctx_params = ["P0", "P1", "P2"]}
+// CHECK-SAME: scop.ctx_params = ["P1", "P2", "P3"]}
 func @test_ctx_multi_domains(%N: index, %M: index, %K: index) {
   // expected-remark@above {{Has OslScop: true}}
   affine.for %i = 0 to %N {

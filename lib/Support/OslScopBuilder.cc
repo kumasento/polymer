@@ -11,6 +11,7 @@
 #include "mlir/Analysis/AffineAnalysis.h"
 #include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/IntegerSet.h"
@@ -25,6 +26,52 @@ using namespace polymer;
 using namespace mlir;
 using namespace llvm;
 
+/// Update the context constraints to make them compatible with the context
+/// relation requirements by OpenScop.
+static FlatAffineConstraints getOslContext(FlatAffineConstraints ctx) {
+  FlatAffineConstraints cst;
+  cst.mergeAndAlignIdsWithOther(0, &ctx);
+
+  // Strip all the IDs that are not symbols.
+  while (cst.getNumDimIds() > 0)
+    cst.removeId(0);
+  while (cst.getNumLocalIds() > 0)
+    cst.removeId(cst.getNumDimAndSymbolIds());
+  assert(cst.getNumSymbolIds() == cst.getNumIds());
+
+  // Insert constraints from the ctx that are not related to dims or locals.
+  for (unsigned i = 0; i < ctx.getNumConstraints(); i++) {
+    bool isEq = i < ctx.getNumEqualities();
+    llvm::ArrayRef<int64_t> row =
+        isEq ? ctx.getEquality(i)
+             : ctx.getInequality(i - ctx.getNumEqualities());
+
+    // If all dim or local values in the current row are zero, append it to cst.
+    if (llvm::all_of(row.take_front(ctx.getNumDimIds()),
+                     [](const int64_t v) { return v == 0; }) &&
+        llvm::all_of(row.take_back(ctx.getNumLocalIds() + 1).drop_back(),
+                     [](const int64_t v) { return v == 0; })) {
+      llvm::ArrayRef<int64_t> symInRow =
+          row.drop_front(ctx.getNumDimIds()).take_front(ctx.getNumSymbolIds());
+
+      // Create a new vector for insertion.
+      llvm::SmallVector<int64_t, 8> vec(symInRow.begin(), symInRow.end());
+      vec.push_back(row.back());
+
+      if (isEq)
+        cst.addEquality(vec);
+      else
+        cst.addInequality(vec);
+    }
+  }
+
+  cst.removeRedundantConstraints();
+
+  return cst;
+}
+
+/// Make sure that cstA and cstB has the same set of symbols, ordered in the
+/// same sequence.
 static void mergeAndAlignSymbols(FlatAffineConstraints &cstA,
                                  const FlatAffineConstraints &cstB) {
   llvm::SmallVector<mlir::Value, 8> symbols;
@@ -279,6 +326,63 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
   const FlatAffineConstraints ctx = scopStmtMap.getContext();
   OslScopSymbolTable symbolTable = initSymbolTable(ctx, scopStmtMap);
 
+  // -------------------------- Setup OpenScop content ------------------------
+
+  // Context relation.
+  scop->addContextRelation(getOslContext(ctx));
+  scop->addParameterNames(symbolTable);
+  scop->addScatnames(scatTreeRoot);
+  scop->addArrays(symbolTable);
+
+  // Put the content of scopStmtMap into scop. The statements will be inserted
+  // in the same order as they are iterated.
+  for (const auto &key : scopStmtMap.getKeys()) {
+    const ScopStmt &scopStmt = scopStmtMap.lookup(key);
+
+    // We create a copy of the domain. This copy will be later updated.
+    FlatAffineConstraints domain(scopStmt.getDomain());
+    // According to the OpenScop specification: "The number of parameters should
+    // be the same for all relations in the entire OpenScop file or data
+    // structure." Therefore, we should merge and align all the parameters
+    // (symbols) in domains with the context.
+    mergeAndAlignSymbols(domain, ctx);
+
+    llvm::SmallVector<unsigned, 8> scats;
+    scatTreeRoot.getPathIds(scopStmt.getCaller(), scats);
+
+    osl_statement *oslStmt = scop->createStatement();
+
+    // Domain relation
+    scop->addDomainRelation(oslStmt, domain);
+
+    // Scattering relation
+    scop->addScatteringRelation(oslStmt, domain, scats);
+
+    // Access relations
+    scopStmt.getCallee()->walk([&](Operation *op) {
+      if (isa<mlir::AffineReadOpInterface, mlir::AffineWriteOpInterface>(op)) {
+        AffineValueMap vMap;
+        Value memref;
+
+        // Get the value-replaced (by the operand of the caller) access map and
+        // memref. All the values in the vMap and memref can be found in the
+        // symbol table.
+        scopStmt.getAccessMapAndMemRef(op, &vMap, &memref);
+
+        // NOTE: The array identifier in OpenScop should start from 1.
+        scop->addAccessRelation(
+            /*stmt=*/oslStmt, /*isRead=*/isa<mlir::AffineReadOpInterface>(op),
+            /*memref=*/memref,
+            /*memId=*/symbolTable.lookupId(memref), /*vMap=*/vMap,
+            /*domain=*/domain);
+      }
+    });
+
+    // Body extension.
+    scop->addBody(oslStmt, scopStmt, symbolTable);
+  }
+
+  // TODO: add a flag to trigger these annotation functions.
   setSymbolAttrs(f, symbolTable, ctx);
   setDomainAttrs(scopStmtMap, symbolTable, ctx);
   setScatTreeAttrs(scopStmtMap, scatTreeRoot);

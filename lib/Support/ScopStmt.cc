@@ -256,6 +256,13 @@ void ScopStmt::getEnclosingOps(llvm::SmallVectorImpl<mlir::Operation *> &ops,
 mlir::FuncOp ScopStmt::getCallee() const { return impl->callee; }
 mlir::CallOp ScopStmt::getCaller() const { return impl->caller; }
 
+void ScopStmt::getIndvars(llvm::SmallVectorImpl<mlir::Value> &indvars) const {
+  indvars.clear();
+
+  const FlatAffineConstraints &domain = getDomain();
+  domain.getIdValues(0, domain.getNumDimIds(), &indvars);
+}
+
 void ScopStmt::updateScatTree(ScatTreeNode &root) const {
   llvm::SmallVector<mlir::Operation *, 8> enclosingOps;
   getEnclosingOps(enclosingOps);

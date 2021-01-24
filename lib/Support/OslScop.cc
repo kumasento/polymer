@@ -80,9 +80,9 @@ llvm::StringRef OslScopSymbolTable::lookupOrCreate(mlir::Value value) {
   if (!foundSymbol.empty())
     return foundSymbol;
 
-  /// If the symbol doesn't exist, we create a new one following the
-  /// corresponding prefix and an integral ID that is increased every creation.
-  std::string symbol = prefix.str() + std::to_string(numSymbolsOfType);
+  // If the symbol doesn't exist, we create a new one following the
+  // corresponding prefix and an integral ID that is increased every creation.
+  std::string symbol = prefix.str() + std::to_string(numSymbolsOfType + 1);
   LLVM_DEBUG(llvm::dbgs() << "Symbol created: " << symbol << "\n");
 
   auto result = symbolTable.insert(std::make_pair(symbol, value));
@@ -180,7 +180,7 @@ FlatAffineConstraints OslScopStmtMap::getContext() const {
   // constraints will be removed.
   for (const auto &key : keys) {
     const ScopStmt &scopStmt = lookup(key);
-    const FlatAffineConstraints &domain = scopStmt.getDomain();
+    FlatAffineConstraints domain(scopStmt.getDomain());
     FlatAffineConstraints cst(domain);
 
     ctx.mergeAndAlignIdsWithOther(0, &cst);
@@ -260,6 +260,8 @@ static void getConstraintRows(const FlatAffineConstraints &cst,
   }
 }
 
+/// --------------------------- Constructors -----------------------------------
+
 OslScop::OslScop()
     : scop(osl_scop_unique_ptr{osl_scop_malloc(), osl_scop_free}) {
   // Additional setup for the language and registry.
@@ -287,6 +289,21 @@ osl_statement *OslScop::createStatement() {
   return stmt;
 }
 
+unsigned OslScop::getStatementId(const osl_statement *stmt) const {
+  osl_statement *curr = scop->statement;
+  unsigned index = 0;
+
+  while (curr) {
+    if (curr == stmt)
+      return index;
+
+    curr = curr->next;
+    index++;
+  }
+
+  assert(false && "The given statement cannot be found.");
+}
+
 osl_statement *OslScop::getStatement(unsigned index) const {
   osl_statement_p curr = scop->statement;
   if (!curr)
@@ -309,11 +326,12 @@ unsigned OslScop::getNumStatements() const {
 /// 1) if it's 0, then it means the context;
 /// 2) otherwise, if it is a positive number, it corresponds to a statement of
 /// id=(target-1).
-static void addRelation(int target, int type, int numRows, int numCols,
-                        int numOutputDims, int numInputDims, int numLocalDims,
-                        int numParams, llvm::ArrayRef<int64_t> eqs,
-                        llvm::ArrayRef<int64_t> inEqs,
-                        OslScop::osl_scop_unique_ptr &scop) {
+static osl_relation *addRelation(int target, int type, int numRows, int numCols,
+                                 int numOutputDims, int numInputDims,
+                                 int numLocalDims, int numParams,
+                                 llvm::ArrayRef<int64_t> eqs,
+                                 llvm::ArrayRef<int64_t> inEqs,
+                                 OslScop::osl_scop_unique_ptr &scop) {
   // Here we preset the precision to 64.
   osl_relation_p rel = osl_relation_pmalloc(64, numRows, numCols);
   rel->type = type;
@@ -375,6 +393,8 @@ static void addRelation(int target, int type, int numRows, int numCols,
       osl_relation_list_add(&(stmt->access), relList);
     }
   }
+
+  return rel;
 }
 
 void OslScop::addRelation(int target, int type, int numRows, int numCols,
@@ -385,10 +405,10 @@ void OslScop::addRelation(int target, int type, int numRows, int numCols,
                 numLocalDims, numParams, eqs, inEqs, scop);
 }
 
-void OslScop::addContextRelation(const FlatAffineConstraints &cst) {
+osl_relation *OslScop::addContextRelation(const FlatAffineConstraints &cst) {
   assert(cst.getNumDimIds() == 0 &&
          "Context constraints shouldn't contain dim IDs.");
-  assert(cst.getNumSymbolIds() == 0 &&
+  assert(cst.getNumLocalIds() == 0 &&
          "Context constraints shouldn't contain local IDs.");
 
   SmallVector<int64_t, 8> eqs, inEqs;
@@ -403,83 +423,129 @@ void OslScop::addContextRelation(const FlatAffineConstraints &cst) {
 
   unsigned numRows = (inEqs.size() + eqs.size()) / (numCols - 1);
   // Create the context relation.
-  ::addRelation(0, OSL_TYPE_CONTEXT, numRows, numCols, 0, 0, 0,
-                cst.getNumSymbolIds(), eqs, inEqs, scop);
+  return ::addRelation(0, OSL_TYPE_CONTEXT, numRows, numCols, 0, 0, 0,
+                       cst.getNumSymbolIds(), eqs, inEqs, scop);
 }
 
-void OslScop::addDomainRelation(int stmtId, const FlatAffineConstraints &cst) {
+osl_relation *
+OslScop::addDomainRelation(const osl_statement *stmt,
+                           const mlir::FlatAffineConstraints &cst) {
+  return addDomainRelation(getStatementId(stmt), cst);
+}
+
+osl_relation *OslScop::addDomainRelation(int stmtId,
+                                         const FlatAffineConstraints &cst) {
+  assert(stmtId < getNumStatements());
+
   SmallVector<int64_t, 8> eqs, inEqs;
   getConstraintRows(cst, eqs);
   getConstraintRows(cst, inEqs, /*isEq=*/false);
 
-  ::addRelation(stmtId + 1, OSL_TYPE_DOMAIN, cst.getNumConstraints(),
-                cst.getNumCols() + 1, cst.getNumDimIds(), 0,
-                cst.getNumLocalIds(), cst.getNumSymbolIds(), eqs, inEqs, scop);
+  return ::addRelation(stmtId + 1, OSL_TYPE_DOMAIN, cst.getNumConstraints(),
+                       cst.getNumCols() + 1, cst.getNumDimIds(), 0,
+                       cst.getNumLocalIds(), cst.getNumSymbolIds(), eqs, inEqs,
+                       scop);
 }
 
 /// Create equations from the list of scat values.
+///
+/// Unlike the format specified by OpenScop, the given `scats` is an array of
+/// unsigned integers collected from scat tree path IDs, which will look like
+/// (0, 0) for (0, i, 0), (1, 2, 0) for (1, i, 2, j, 0), and (0) for (0).
+/// We assume that the loop IVs are inserted in the same order as those in the
+/// given domain.
+///
+/// Internally, the 1-D eqs array represents an M x N scattering matrix, each
+/// row of it is a equation, its columns are listed as [ results, IVs, params, 1
+/// ]. The total number of IVs should be the same as the number of dims in the
+/// domain, and the results should equal to M, the total number of equations,
+/// which should be the sum of .
 static void getEqsFromScats(llvm::ArrayRef<unsigned> scats,
-                            const mlir::FlatAffineConstraints &cst,
-                            std::vector<int64_t> &eqs) {
+                            const mlir::FlatAffineConstraints &domain,
+                            std::vector<int64_t> &eqs, unsigned &numScatEqs,
+                            unsigned &numScatCols) {
+  // Sanity checks.
+  assert(scats.size() == 1 + domain.getNumDimIds() &&
+         "The number of IVs + 1 should be the size of scats");
+
   // Elements (N of them) in `scattering` are constants, and there are IVs
-  // interleaved them. Therefore, we have 2N - 1 number of scattering
+  // interleaving them. Therefore, we have 2N - 1 number of scattering
   // equalities.
-  unsigned numScatEqs = scats.size() * 2 - 1;
+  numScatEqs = 2 * scats.size() - 1;
+  unsigned numOutputCols = numScatEqs; // an alias.
   // Columns include new scattering dimensions and those from the domain.
-  unsigned numScatCols = numScatEqs + cst.getNumCols() + 1;
+  numScatCols = numOutputCols + domain.getNumCols();
+  unsigned numIndvarCols = domain.getNumDimIds();
+  unsigned numParameterCols =
+      domain.getNumLocalIds() + domain.getNumSymbolIds();
 
   // Initialize contents for equalities.
-  eqs.resize(numScatEqs * (numScatCols - 1));
+  eqs.resize(numScatEqs * numScatCols);
 
-  for (unsigned j = 0; j < numScatEqs; j++) {
-    unsigned startId = j * (numScatCols - 1);
+  for (unsigned row = 0; row < numScatEqs; row++) {
+    unsigned startId = row * numScatCols;
+
+    // Output Dims: reuslts.
     // Initializing scattering dimensions by setting the diagonal to -1.
-    for (unsigned k = 0; k < numScatEqs; k++)
-      eqs[startId + k] = -static_cast<int64_t>(k == j);
+    for (unsigned col = 0; col < numOutputCols; col++)
+      eqs[startId + col] = -static_cast<int64_t>(col == row);
 
-    // Relating the loop IVs to the scattering dimensions. If it's the odd
-    // equality, set its scattering dimension to the loop IV; otherwise, it's
-    // scattering dimension will be set in the following constant section.
-    for (unsigned k = 0; k < cst.getNumDimIds(); k++)
-      eqs[startId + k + numScatEqs] = (j % 2) ? (k == (j / 2)) : 0;
+    // Input Dims: loop IVs.
+    // Relating the loop IVs to the scattering dimensions. If it's the **odd**
+    // (row % 2 == 1) equality, set its scattering dimension to 1 if the loop IV
+    // matches (the loop IV id, `col`, equals to the equation ID, row, divided
+    // by 2, which can be derived easily from the convention of scats);
+    // otherwise, it's scattering dimension will be set in the following
+    // constant section.
+    startId += numOutputCols;
+    for (unsigned col = 0; col < numIndvarCols; col++)
+      eqs[startId + col] = (row % 2) ? (col == (row / 2)) : 0;
 
+    // Parameters.
     // TODO: consider the parameters that may appear in the scattering
     // dimension.
-    for (unsigned k = 0; k < cst.getNumLocalIds() + cst.getNumSymbolIds(); k++)
-      eqs[startId + k + numScatEqs + cst.getNumDimIds()] = 0;
+    startId += numIndvarCols;
+    for (unsigned col = 0; col < numParameterCols; col++)
+      eqs[startId + col] = 0;
 
+    // Constants.
     // Relating the constants (the last column) to the scattering dimensions.
-    eqs[startId + numScatCols - 2] = (j % 2) ? 0 : scats[j / 2];
+    // The value to set can be found in scats.
+    startId += numParameterCols;
+    eqs[startId] = (row % 2) ? 0 : scats[row / 2];
   }
 }
 
-void OslScop::addScatteringRelation(
-    int stmtId, const mlir::FlatAffineConstraints &cst,
-    llvm::ArrayRef<mlir::Operation *> enclosingOps, mlir::Operation *caller) {
-#if 0
-  // First insert the enclosing ops into the scat tree.
-  SmallVector<unsigned, 8> scats;
-  scatTreeRoot->insertPath(enclosingOps, caller, scats);
+osl_relation *
+OslScop::addScatteringRelation(const osl_statement *stmt,
+                               const mlir::FlatAffineConstraints &domain,
+                               llvm::ArrayRef<unsigned> scats) {
+  return addScatteringRelation(getStatementId(stmt), domain, scats);
+}
 
-  // Create equalities and inequalities.
+osl_relation *
+OslScop::addScatteringRelation(int stmtId,
+                               const mlir::FlatAffineConstraints &domain,
+                               llvm::ArrayRef<unsigned> scats) {
+  unsigned numScatEqs, numScatCols;
+
+  // Create equalities and inequalities. Note that there is no inequality for
+  // scattering relations.
   std::vector<int64_t> eqs, inEqs;
-  getEqsFromScats(scats, cst, eqs);
-
-  unsigned numScatEqs = scats.size() * 2 - 1;
-  unsigned numScatCols = numScatEqs + cst.getNumCols() + 1;
+  getEqsFromScats(scats, domain, eqs, numScatEqs, numScatCols);
 
   // Then put them into the scop as a SCATTERING relation.
-  ::addRelation(stmtId + 1, OSL_TYPE_SCATTERING, numScatEqs, numScatCols,
-                numScatEqs, cst.getNumDimIds(), cst.getNumLocalIds(),
-                cst.getNumSymbolIds(), eqs, inEqs, scop);
-#endif
+  return ::addRelation(stmtId + 1, OSL_TYPE_SCATTERING, numScatEqs,
+                       numScatCols + 1, numScatEqs, domain.getNumDimIds(),
+                       domain.getNumLocalIds(), domain.getNumSymbolIds(), eqs,
+                       inEqs, scop);
 }
 
 /// Use FlatAffineConstraints to represent the access relation, given by the
 /// AffineValueMap vMap. Result is returned as cst.
 static void getAccessRelationConstraints(mlir::AffineValueMap &vMap,
                                          mlir::Value memref, unsigned memId,
-                                         mlir::FlatAffineConstraints &domain,
+                                         mlir::FlatAffineConstraints domain,
                                          mlir::FlatAffineConstraints &cst) {
   cst.reset();
   cst.mergeAndAlignIdsWithOther(0, &domain);
@@ -490,10 +556,9 @@ static void getAccessRelationConstraints(mlir::AffineValueMap &vMap,
   for (auto val : idValues)
     idValueSet.insert(val);
 
+  // Values in the vMap should be in the domain as well.
   for (auto operand : vMap.getOperands())
-    if (!idValueSet.contains(operand)) {
-      llvm::errs() << "Operand missing: " << operand << "\n";
-    }
+    assert(idValueSet.contains(operand));
 
   // The results of the affine value map, which are the access addresses, will
   // be placed to the leftmost of all columns.
@@ -504,16 +569,19 @@ static void getAccessRelationConstraints(mlir::AffineValueMap &vMap,
   cst.setIdToConstant(0, memId);
 }
 
-void OslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
-                                mlir::AffineValueMap &vMap,
-                                FlatAffineConstraints &domain) {
-#if 0 
-  FlatAffineConstraints cst;
+osl_relation *OslScop::addAccessRelation(const osl_statement *stmt, bool isRead,
+                                         mlir::Value memref, unsigned memId,
+                                         mlir::AffineValueMap &vMap,
+                                         const FlatAffineConstraints &domain) {
+  return addAccessRelation(getStatementId(stmt), isRead, memref, memId, vMap,
+                           domain);
+}
 
-  // Create a new dim of memref and set its value to its corresponding ID.
-  unsigned memId;
-  llvm::StringRef memSym = getOrCreateSymbol(memref);
-  memSym.drop_front().getAsInteger(0, memId);
+osl_relation *OslScop::addAccessRelation(int stmtId, bool isRead,
+                                         mlir::Value memref, unsigned memId,
+                                         mlir::AffineValueMap &vMap,
+                                         const FlatAffineConstraints &domain) {
+  FlatAffineConstraints cst;
 
   // Insert the address dims and put constraints in it.
   getAccessRelationConstraints(vMap, memref, memId, domain, cst);
@@ -528,20 +596,23 @@ void OslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
 
   // Then put them into the scop as an ACCESS relation.
   unsigned numOutputDims = cst.getNumConstraints();
+  assert(numOutputDims > 0);
+
   unsigned numInputDims = cst.getNumDimIds() - numOutputDims;
-  ::addRelation(stmtId + 1, isRead ? OSL_TYPE_READ : OSL_TYPE_WRITE,
-                cst.getNumConstraints(), cst.getNumCols() + 1, numOutputDims,
-                numInputDims, cst.getNumLocalIds(), cst.getNumSymbolIds(), eqs,
-                inEqs, scop);
-#endif
+
+  return ::addRelation(stmtId + 1, isRead ? OSL_TYPE_READ : OSL_TYPE_WRITE,
+                       cst.getNumConstraints(), cst.getNumCols() + 1,
+                       numOutputDims, numInputDims, cst.getNumLocalIds(),
+                       cst.getNumSymbolIds(), eqs, inEqs, scop);
 }
 
 /// --------------------------- Extensions ------------------------------------
 
 /// Add a new generic field to a statement. `target` gives the statement ID.
 /// `content` specifies the data field in the generic.
-static void addGeneric(int target, llvm::StringRef tag, llvm::StringRef content,
-                       OslScop::osl_scop_unique_ptr &scop) {
+static osl_generic *addGeneric(int target, llvm::StringRef tag,
+                               llvm::StringRef content,
+                               OslScop::osl_scop_unique_ptr &scop) {
   osl_generic_p generic = osl_generic_malloc();
 
   // Add interface.
@@ -565,26 +636,38 @@ static void addGeneric(int target, llvm::StringRef tag, llvm::StringRef content,
     osl_statement_p stmt = getOslStatement(scop.get(), target - 1);
     osl_generic_add(&(stmt->extension), generic);
   }
+
+  return generic;
 }
 
-void OslScop::addGeneric(int target, llvm::StringRef tag,
-                         llvm::StringRef content) {
-  ::addGeneric(target, tag, content, scop);
+osl_generic *OslScop::addGeneric(int target, llvm::StringRef tag,
+                                 llvm::StringRef content) {
+  return ::addGeneric(target, tag, content, scop);
 }
 
-void OslScop::addExtensionGeneric(llvm::StringRef tag,
-                                  llvm::StringRef content) {
-  ::addGeneric(0, tag, content, scop);
+/// Add an extension generic content to the whole osl_scop. tag specifies what
+/// the generic type is.
+static osl_generic *addExtensionGeneric(llvm::StringRef tag,
+                                        llvm::StringRef content,
+                                        OslScop::osl_scop_unique_ptr &scop) {
+  return addGeneric(0, tag, content, scop);
 }
 
-void OslScop::addParametersGeneric(llvm::StringRef tag,
-                                   llvm::StringRef content) {
-  ::addGeneric(-1, "strings", content, scop);
+/// Add a generic content to the beginning of the whole osl_scop. tag
+/// specifies the type of the extension. The content has a space separated
+/// list of parameter names.
+static osl_generic *addParametersGeneric(llvm::StringRef tag,
+                                         llvm::StringRef content,
+                                         OslScop::osl_scop_unique_ptr &scop) {
+  return addGeneric(-1, "strings", content, scop);
 }
 
-void OslScop::addStatementGeneric(int stmtId, llvm::StringRef tag,
-                                  llvm::StringRef content) {
-  ::addGeneric(stmtId + 1, tag, content, scop);
+/// Add a generic to a single statement, which can be <body>, for example. tag
+/// specifies what the generic type is.
+static osl_generic *addStatementGeneric(int stmtId, llvm::StringRef tag,
+                                        llvm::StringRef content,
+                                        OslScop::osl_scop_unique_ptr &scop) {
+  return addGeneric(stmtId + 1, tag, content, scop);
 }
 
 osl_generic_p OslScop::getExtension(llvm::StringRef tag) const {
@@ -600,15 +683,14 @@ osl_generic_p OslScop::getExtension(llvm::StringRef tag) const {
   return nullptr;
 }
 
-void OslScop::addParameterNamesFromSymbolTable() {
-#if 0
+osl_generic *OslScop::addParameterNames(const OslScopSymbolTable &st) {
   std::string body;
   llvm::raw_string_ostream ss(body);
 
   SmallVector<std::string, 8> names;
 
-  for (const auto &it : symbolTable)
-    if (getSymbolType(it.first()) == PARAMETER)
+  for (const auto &it : st.getSymbolTable())
+    if (st.getType(it.first()) == PARAMETER)
       names.push_back(std::string(it.first()));
 
   // The lexicographical order ensures that name "Pi" will only be before "Pj"
@@ -617,65 +699,58 @@ void OslScop::addParameterNamesFromSymbolTable() {
   for (const auto &s : names)
     ss << s << " ";
 
-  addParametersGeneric("strings", body);
-#endif
+  return addParametersGeneric("strings", body, scop);
 }
 
-void OslScop::addScatnamesExtensionFromScatTree() {
-#if 0
+osl_generic *OslScop::addScatnames(const ScatTreeNode &root) {
   std::string body;
   llvm::raw_string_ostream ss(body);
 
-  unsigned numScatnames = scatTreeRoot->getDepth();
-  numScatnames = (numScatnames - 2) * 2 + 1;
+  // (Depth - 2) * 2 + 1
+  // e.g., the depth of a scat tree (0, i, 1, j, 2) is 4, (4 - 2) * 2 + 1 = 5.
+  unsigned numScatnames = (root.getDepth() - 2) * 2 + 1;
   for (unsigned i = 0; i < numScatnames; i++)
     ss << "c" << (i + 1) << " ";
 
-  addExtensionGeneric("scatnames", body);
-#endif
+  return addExtensionGeneric("scatnames", body, scop);
 }
 
-void OslScop::addArraysExtensionFromSymbolTable() {
-#if 0
+osl_generic *OslScop::addArrays(const OslScopSymbolTable &st) {
   std::string body;
   llvm::raw_string_ostream ss(body);
 
   unsigned numArraySymbols = 0;
-  for (const auto &it : symbolTable)
-    if (getSymbolType(it.first()) == MEMREF) {
+  for (const auto &it : st.getSymbolTable())
+    if (st.getType(it.first()) == MEMREF) {
       // Numerical ID and its corresponding textual ID.
       ss << it.first().drop_front() << " " << it.first() << " ";
       numArraySymbols++;
     }
 
-  std::string fullBody = std::to_string(numArraySymbols) + body;
-  addExtensionGeneric("arrays", fullBody);
-#endif
+  std::string fullBody = std::to_string(numArraySymbols) + " " + body;
+  return addExtensionGeneric("arrays", fullBody, scop);
 }
 
-void OslScop::addBodyExtension(int stmtId, const ScopStmt &stmt) {
-  // std::string body;
-  // llvm::raw_string_ostream ss(body);
+osl_generic *OslScop::addBody(osl_statement *oslStmt, const ScopStmt &scopStmt,
+                              const OslScopSymbolTable &st) {
+  std::string body;
+  llvm::raw_string_ostream ss(body);
 
-  // SmallVector<mlir::Operation *, 8> forOps;
-  // stmt.getEnclosingOps(forOps, /*forOnly=*/true);
+  SmallVector<Value, 8> ivs;
+  scopStmt.getIndvars(ivs);
 
-  // unsigned numIVs = forOps.size();
-  // ss << numIVs << " ";
+  // First output the size of all the induction variables, as well as the
+  // symbols for each of them.
+  unsigned numIVs = ivs.size();
+  ss << numIVs << " ";
+  for (Value iv : ivs)
+    ss << st.lookup(iv) << " ";
+  ss << "\n";
 
-  // llvm::DenseMap<mlir::Value, unsigned> ivToId;
-  // for (unsigned i = 0; i < numIVs; i++) {
-  //   mlir::AffineForOp forOp = cast<mlir::AffineForOp>(forOps[i]);
-  //   // forOp.dump();
-  //   ivToId[forOp.getInductionVar()] = i;
-  // }
-
-  // for (unsigned i = 0; i < numIVs; i++)
-  //   ss << "i" << i << " ";
-
-  // mlir::CallOp caller = stmt.getCaller();
-  // mlir::FuncOp callee = stmt.getCallee();
-  // ss << "\n" << callee.getName() << "(";
+  mlir::FuncOp callee = scopStmt.getCallee();
+  ss << callee.getName() << "(";
+  interleaveComma(ivs, ss, [&](Value iv) { ss << st.lookup(iv); });
+  ss << ")";
 
   // SmallVector<std::string, 8> ivs;
   // SetVector<unsigned> visited;
@@ -701,5 +776,5 @@ void OslScop::addBodyExtension(int stmtId, const ScopStmt &stmt) {
 
   // ss << ")";
 
-  // addGeneric(stmtId + 1, "body", body);
+  return addStatementGeneric(getStatementId(oslStmt), "body", body, scop);
 }

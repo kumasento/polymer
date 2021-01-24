@@ -54,6 +54,9 @@ public:
   void getEnclosingOps(llvm::SmallVectorImpl<mlir::Operation *> &ops,
                        bool forOnly = false) const;
 
+  /// Get the induction variables surronding the caller.
+  void getIndvars(llvm::SmallVectorImpl<mlir::Value> &) const;
+
   /// Update the ScatTree by the current ScopStmt.
   void updateScatTree(ScatTreeNode &root) const;
 

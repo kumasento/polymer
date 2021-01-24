@@ -8,7 +8,7 @@ func @test_single_iv() {
   affine.for %i = 0 to 10 {
     call @S0() : () -> ()
   }
-  // CHECK: {scop.iv_name = "i0"}
+  // CHECK: {scop.iv_name = "i1"}
   return
 }
 

@@ -22,7 +22,7 @@ func @single_domain(%A: memref<?xf32>) {
   %d0 = dim %A, %c0 : memref<?xf32>
 
   affine.for %i = 0 to %d0 {
-    // CHECK: scop.domain_symbols = ["i0", "P0"]
+    // CHECK: scop.domain_symbols = ["i1", "P1"]
     call @S0() : () -> ()
   }
 
@@ -49,22 +49,22 @@ func @multi_domains(%A: memref<?x?x?xf32>) {
     affine.for %j = 0 to %d1 {
       affine.for %k = 0 to %d2 {
         // CHECK-LABEL: @S0
-        // CHECK: scop.domain_symbols = ["i0", "i1", "i2", "P0", "P1", "P2"]
+        // CHECK: scop.domain_symbols = ["i1", "i2", "i3", "P1", "P2", "P3"]
         call @S0() : () -> ()
       }
       // CHECK-LABEL: @S1
-      // CHECK: scop.domain_symbols = ["i0", "i1", "P0", "P1", "P2"]
+      // CHECK: scop.domain_symbols = ["i1", "i2", "P1", "P2", "P3"]
       call @S1() : () -> ()
     }
   }
 
   // CHECK-LABEL: @S2
-  // CHECK: scop.domain_symbols = ["P0", "P1", "P2"]
+  // CHECK: scop.domain_symbols = ["P1", "P2", "P3"]
   call @S2() : () -> ()
 
   affine.for %i = 0 to %d0 {
     // CHECK-LABEL: @S3
-    // CHECK: scop.domain_symbols = ["i3", "P0", "P1", "P2"]
+    // CHECK: scop.domain_symbols = ["i4", "P1", "P2", "P3"]
     call @S3() : () -> ()
   }
 

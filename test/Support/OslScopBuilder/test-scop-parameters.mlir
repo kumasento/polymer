@@ -3,8 +3,8 @@
 // Test whether parameters can be marked as symbols.
 
 // CHECK-LABEL: func @params_in_top_level
-// CHECK: scop.arg_names = ["P0", "P1"]
-// CHECK: scop.ctx_params = ["P0", "P1"]
+// CHECK: scop.arg_names = ["P1", "P2"]
+// CHECK: scop.ctx_params = ["P1", "P2"]
 func @params_in_top_level(%N: index, %M: index) {
   // expected-remark@above {{Has OslScop: true}}
   affine.for %i = 0 to %N {
@@ -41,12 +41,12 @@ func private @S0() attributes { scop.stmt }
 // -----
 
 // CHECK-LABEL: func @params_in_body
-// CHECK: scop.ctx_params = ["P0"]
+// CHECK: scop.ctx_params = ["P1"]
 func @params_in_body(%A: memref<?xf32>) {
   // expected-remark@above {{Has OslScop: true}}
   %c0 = constant 0 : index
   %s0 = dim %A, %c0 : memref<?xf32>
-  // CHECK: %[[VAL0:.*]] = dim {scop.param_names = ["P0"]} %{{.*}}, %{{.*}} : memref<?xf32>
+  // CHECK: %[[VAL0:.*]] = dim {scop.param_names = ["P1"]} %{{.*}}, %{{.*}} : memref<?xf32>
 
   affine.for %i = 0 to %s0 {
     call @S0(): () -> ()
@@ -66,12 +66,12 @@ func private @S0() attributes { scop.stmt }
 #map0 = affine_map<()[s0, s1] -> (s0, s1)>
 
 // CHECK-LABEL: func @params_through_affine_map
-// CHECK: scop.ctx_params = ["P0", "P1"]
+// CHECK: scop.ctx_params = ["P1", "P2"]
 func @params_through_affine_map(%A: memref<?xf32>, %N: i32) {
   // expected-remark@above {{Has OslScop: true}}
   %c0 = constant 0 : index
   %s0 = dim %A, %c0 : memref<?xf32>
-  // CHECK: %[[VAL0:.*]] = dim {scop.param_names = ["P0"]} %{{.*}}, %{{.*}} : memref<?xf32>
+  // CHECK: %[[VAL0:.*]] = dim {scop.param_names = ["P1"]} %{{.*}}, %{{.*}} : memref<?xf32>
   %s1 = index_cast %N : i32 to index
   // CHECK: %[[VAL1:.*]] = index_cast %{{.*}} : i32 to index
 
