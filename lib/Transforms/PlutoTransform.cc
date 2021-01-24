@@ -68,7 +68,7 @@ struct PlutoTransform : public OpConversionPattern<mlir::FuncOp> {
     PlutoContext *context = pluto_context_alloc();
     OslSymbolTable srcTable, dstTable;
 
-    std::unique_ptr<OslScop> scop = createOpenScopFromFuncOp(funcOp, srcTable);
+    std::unique_ptr<OslScop> scop = createOpenScopFromFuncOp(funcOp);
     if (!scop) {
       funcOp.emitError(
           "Cannot emit a valid OpenScop representation from the given FuncOp.");

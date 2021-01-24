@@ -70,17 +70,19 @@ static void getScopStmtOps(Operation *writeOp, SetVector<Operation *> &ops,
     // Recursively visit other defining ops that are not in ops.
     for (mlir::Value operand : op->getOperands()) {
       Operation *defOp = operand.getDefiningOp();
-      // We find the defining op and place it in the worklist, if it is not null
-      // and has not been visited yet.
-      if (defOp) {
-        if (!ops.contains(defOp))
-          worklist.push_back(defOp);
-      }
-      // Otherwise, stop the recursion at values that don't have a defining op,
-      // i.e., block arguments, which could be loop IVs, external arguments,
-      // etc. And insert them into the argument list (args).
-      else
+
+      if (defOp && !isValidSymbol(operand) && !isValidDim(operand) &&
+          !ops.contains(defOp)) {
+        // We find the defining op and place it in the worklist, if it is not
+        // null, not a symbol, not a dim, and has not been visited yet. Symbols
+        // and dims should be defined in the global scope.
+        worklist.push_back(defOp);
+      } else {
+        // Otherwise, stop the recursion at values that don't have a defining
+        // op, i.e., block arguments, which could be loop IVs, external
+        // arguments, etc. And insert them into the argument list (args).
         args.insert(operand);
+      }
     }
   }
 
@@ -105,7 +107,6 @@ static mlir::FuncOp createCallee(StringRef calleeName,
                                  OpBuilder &b) {
   assert(ops.contains(writeOp) && "writeOp should be a member in ops.");
 
-  unsigned numArgs = args.size();
   unsigned numOps = ops.size();
 
   // Get a list of types of all function arguments, and use it to create the
@@ -204,7 +205,7 @@ static unsigned extractScopStmt(mlir::FuncOp f, unsigned numCallees,
     // Create the callee.
     mlir::FuncOp callee = createCallee(calleeName, ops, args, m, writeOp, b);
     // Create the caller.
-    mlir::CallOp caller = createCaller(callee, args, writeOp, b);
+    createCaller(callee, args, writeOp, b);
 
     // All the ops that have been placed in the callee should be removed.
     opsToRemove.set_union(ops);

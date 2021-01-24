@@ -109,120 +109,6 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
 
   LLVM_DEBUG(llvm::dbgs() << "Initialized domain:\n");
   LLVM_DEBUG(domain.dump());
-
-#if 0 
-  // Symbol values, which could be a BlockArgument, or the result of DimOp or
-  // IndexCastOp, or even an affine.apply. Here we limit the cases to be either
-  // BlockArgument or IndexCastOp, and if it is an IndexCastOp, the cast source
-  // should be a top-level BlockArgument.
-  SmallVector<mlir::Value, 8> symValues;
-  llvm::DenseMap<mlir::Value, mlir::Value> symMap;
-  domain.getIdValues(domain.getNumDimIds(), domain.getNumDimAndSymbolIds(),
-                     &symValues);
-  for (unsigned i = 0; i < symValues.size(); i++) {
-    mlir::Value val = symValues[i];
-
-    if (val.isa<mlir::BlockArgument>()) {
-      mlir::BlockArgument arg = val.cast<mlir::BlockArgument>();
-      symMap[val] = val;
-      assert(isa<mlir::FuncOp>(arg.getOwner()->getParentOp()) &&
-             "Any block argument that acts as a parameter should be from the "
-             "top-level.");
-    } else {
-      mlir::Operation *defOp = val.getDefiningOp();
-      assert(defOp != nullptr);
-      assert(isa<mlir::IndexCastOp>(defOp) &&
-             "Only allow defOp of a parameter to be an IndexCast.");
-
-      mlir::IndexCastOp indexCastOp = dyn_cast<mlir::IndexCastOp>(defOp);
-      assert(indexCastOp.getOperand().isa<mlir::BlockArgument>());
-      assert(isa<mlir::FuncOp>(indexCastOp.getOperand()
-                                   .cast<mlir::BlockArgument>()
-                                   .getOwner()
-                                   ->getParentOp()) &&
-             "ifAny block argument that acts as a parameter should be from the "
-             "top-level.");
-
-      // replace the sym value.
-      domain.setIdValue(i + domain.getNumDimIds(), indexCastOp.getOperand());
-      symMap[val] = indexCastOp.getOperand();
-    }
-  }
-
-  // SmallVector<mlir::Value, 8> symValues;
-  domain.getIdValues(domain.getNumDimIds(), domain.getNumDimAndSymbolIds(),
-                     &symValues);
-  // for (unsigned i = 0; i < symValues.size(); i++)
-  //   symValues[i].dump();
-
-  // TODO: good or bad?
-  SmallVector<mlir::Value, 8> dimValues;
-  domain.getIdValues(0, domain.getNumDimIds(), &dimValues);
-
-  for (auto dimValue : dimValues) {
-    if (dimValue.getDefiningOp()) {
-      Operation *defOp = dimValue.getDefiningOp();
-      assert(isa<mlir::AffineApplyOp>(defOp));
-
-      unsigned pos;
-      if (!domain.findId(dimValue, &pos))
-        continue;
-
-      mlir::AffineApplyOp applyOp = cast<mlir::AffineApplyOp>(defOp);
-      // applyOp.dump();
-
-      mlir::AffineValueMap vmap = applyOp.getAffineValueMap();
-
-      for (unsigned i = 0; i < vmap.getNumOperands(); i++) {
-        unsigned pos;
-        Value v = vmap.getOperand(i);
-        if (symMap.find(v) != symMap.end())
-          v = symMap.lookup(v);
-        if (!domain.findId(v, &pos)) {
-          if (i < vmap.getNumDims())
-            domain.addDimId(domain.getNumDimIds(), v);
-          else if (i - vmap.getNumDims() < vmap.getNumSymbols())
-            domain.addSymbolId(domain.getNumSymbolIds(), v);
-        }
-      }
-      // domain.dump();
-
-      std::vector<SmallVector<int64_t, 8>> eqs;
-      SmallVector<int64_t, 8> newEq(domain.getNumCols(), 0);
-      getFlattenedAffineExprs(vmap.getAffineMap(), &eqs);
-      assert(vmap.getNumResults() == 1);
-
-      assert(domain.findId(dimValue, &pos));
-      newEq[pos] = eqs[0][0];
-
-      for (unsigned i = 1; i < eqs[0].size(); i++) {
-        unsigned pos;
-        assert(i - 1 < vmap.getNumOperands());
-        Value v = vmap.getOperand(i - 1);
-        if (symMap.find(v) != symMap.end())
-          v = symMap.lookup(v);
-        // v.dump();
-        assert(domain.findId(v, &pos));
-        // assert(pos < eqs[0].size());
-
-        newEq[pos] = eqs[0][i];
-      }
-
-      domain.addEquality(newEq);
-    }
-  }
-
-  domain.getIdValues(0, domain.getNumDimIds(), &dimValues);
-  for (auto dimValue : dimValues) {
-    if (dimValue.getDefiningOp()) {
-      domain.projectOut(dimValue);
-    }
-  }
-  domain.removeTrivialRedundancy();
-  domain.removeRedundantConstraints();
-  // llvm::errs() << "After pruning all affine.apply\n";
-  // domain.dump();
-#endif
 }
 
 void ScopStmtImpl::getArgsValueMapping(BlockAndValueMapping &argMap) {
@@ -289,17 +175,22 @@ void ScopStmt::getAccesses(
 static mlir::Value findBlockArg(mlir::Value v) {
   mlir::Value r = v;
   while (r != nullptr) {
-    if (r.isa<BlockArgument>())
+    // A block argument is found.
+    if (r.isa<mlir::BlockArgument>())
       break;
 
     mlir::Operation *defOp = r.getDefiningOp();
-    if (!defOp || defOp->getNumOperands() != 1)
-      return nullptr;
-    if (!isa<mlir::IndexCastOp>(defOp))
-      return nullptr;
+
+    assert((defOp && defOp->getNumOperands() == 1) &&
+           "The defining op should exist and has a single operand.");
+    assert(isa<mlir::IndexCastOp>(defOp) &&
+           "Can only propagate through IndexCastOp.");
 
     r = defOp->getOperand(0);
   }
+
+  assert(r != nullptr &&
+         "Cannot find the top-level counterpart for the given value.");
 
   return r;
 }
@@ -360,10 +251,14 @@ void ScopStmt::getAccessConstraints(const mlir::MemRefAccess &access,
 void ScopStmt::getAccessMapAndMemRef(mlir::Operation *op,
                                      mlir::AffineValueMap *vMap,
                                      mlir::Value *memref) const {
+  assert(op->getParentOfType<mlir::FuncOp>() &&
+         "The parent of the given `op` should be a FuncOp (callee)");
+  assert(getCallee() == op->getParentOp() &&
+         "The parent of the given `op` should be callee.");
+
   BlockAndValueMapping argMap;
   impl->getArgsValueMapping(argMap);
 
-  // TODO: assert op is in the callee.
   MemRefAccess access(op);
 
   // Collect the access AffineValueMap that binds to operands in the callee.
@@ -372,8 +267,12 @@ void ScopStmt::getAccessMapAndMemRef(mlir::Operation *op,
 
   // Replace its operands by what the caller uses.
   SmallVector<mlir::Value, 8> operands;
-  for (mlir::Value operand : aMap.getOperands()) {
+  for (Value operand : aMap.getOperands()) {
+    assert(operand != nullptr && "aMap operand shouldn't be null.");
+
     mlir::Value origArg = findBlockArg(argMap.lookupOrDefault(operand));
+
+    assert(origArg != nullptr && "origArg shouldn't be null.");
     assert(origArg != operand);
     operands.push_back(origArg);
   }

@@ -435,8 +435,6 @@ OslScop::addDomainRelation(const osl_statement *stmt,
 
 osl_relation *OslScop::addDomainRelation(int stmtId,
                                          const FlatAffineConstraints &cst) {
-  assert(stmtId < getNumStatements());
-
   SmallVector<int64_t, 8> eqs, inEqs;
   getConstraintRows(cst, eqs);
   getConstraintRows(cst, inEqs, /*isEq=*/false);
@@ -557,8 +555,11 @@ static void getAccessRelationConstraints(mlir::AffineValueMap &vMap,
     idValueSet.insert(val);
 
   // Values in the vMap should be in the domain as well.
-  for (auto operand : vMap.getOperands())
-    assert(idValueSet.contains(operand));
+  for (auto operand : vMap.getOperands()) {
+    assert(operand != nullptr && "vMap operand shouldn't be null.");
+    assert(idValueSet.contains(operand) &&
+           "Values in the vMap should be in the domain as well.");
+  }
 
   // The results of the affine value map, which are the access addresses, will
   // be placed to the leftmost of all columns.
@@ -690,8 +691,11 @@ osl_generic *OslScop::addParameterNames(const OslScopSymbolTable &st) {
   SmallVector<std::string, 8> names;
 
   for (const auto &it : st.getSymbolTable())
-    if (st.getType(it.first()) == PARAMETER)
+    if (st.getType(it.first()) == OslScopSymbolTable::PARAMETER)
       names.push_back(std::string(it.first()));
+
+  if (names.empty())
+    return nullptr;
 
   // The lexicographical order ensures that name "Pi" will only be before "Pj"
   // if i <= j.
@@ -721,7 +725,7 @@ osl_generic *OslScop::addArrays(const OslScopSymbolTable &st) {
 
   unsigned numArraySymbols = 0;
   for (const auto &it : st.getSymbolTable())
-    if (st.getType(it.first()) == MEMREF) {
+    if (st.getType(it.first()) == OslScopSymbolTable::MEMREF) {
       // Numerical ID and its corresponding textual ID.
       ss << it.first().drop_front() << " " << it.first() << " ";
       numArraySymbols++;

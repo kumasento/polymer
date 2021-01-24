@@ -141,8 +141,6 @@ public:
   static constexpr const char *const SCOP_ARG_NAMES_ATTR_NAME =
       "scop.arg_names";
 
-  enum SymbolType { NOT_A_SYMBOL, MEMREF, INDVAR, PARAMETER, CONSTANT };
-
 private:
   /// The osl_scop object being managed.
   osl_scop_unique_ptr scop;
