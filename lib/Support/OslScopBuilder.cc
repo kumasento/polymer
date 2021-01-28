@@ -361,20 +361,19 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
     // Access relations
     scopStmt.getCallee()->walk([&](Operation *op) {
       if (isa<mlir::AffineReadOpInterface, mlir::AffineWriteOpInterface>(op)) {
-        AffineValueMap vMap;
         Value memref;
+        MemRefAccess access(op);
+        FlatAffineConstraints cst;
 
         // Get the value-replaced (by the operand of the caller) access map and
         // memref. All the values in the vMap and memref can be found in the
         // symbol table.
-        scopStmt.getAccessMapAndMemRef(op, &vMap, &memref);
+        scopStmt.getAccessConstraints(access, symbolTable, cst, domain);
 
         // NOTE: The array identifier in OpenScop should start from 1.
         scop->addAccessRelation(
             /*stmt=*/oslStmt, /*isRead=*/isa<mlir::AffineReadOpInterface>(op),
-            /*memref=*/memref,
-            /*memId=*/symbolTable.lookupId(memref), /*vMap=*/vMap,
-            /*domain=*/domain);
+            /*domain=*/domain, /*domain=*/cst);
       }
     });
 

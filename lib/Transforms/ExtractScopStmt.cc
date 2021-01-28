@@ -7,7 +7,10 @@
 
 #include "polymer/Transforms/ExtractScopStmt.h"
 
+#include "mlir/Analysis/AffineAnalysis.h"
+#include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Analysis/SliceAnalysis.h"
+#include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -38,15 +41,42 @@ static void discoverMemWriteOps(mlir::FuncOp f,
   });
 }
 
+/// Go through every write op and get their domain. And we try to union all
+/// their parameters.
+static void getGlobalContext(ArrayRef<Operation *> ops,
+                             SetVector<Value> &params) {
+  params.clear();
+
+  for (Operation *op : ops) {
+    FlatAffineConstraints cst;
+    SmallVector<Operation *, 8> enclosingOps;
+    getEnclosingAffineForAndIfOps(*op, &enclosingOps);
+    getIndexSet(enclosingOps, &cst);
+
+    SmallVector<Value, 8> symbols;
+    cst.getIdValues(cst.getNumDimIds(), cst.getNumDimAndSymbolIds(), &symbols);
+
+    for (Value symbol : symbols)
+      params.insert(symbol);
+  }
+}
+
 /// Get all the ops belongs to a statement starting from the given
 /// operation. The sequence of the operations in defOps will be reversed,
 /// depth-first, starting from op. Note that the initial op will be placed in
 /// the resulting ops as well.
 static void getScopStmtOps(Operation *writeOp, SetVector<Operation *> &ops,
+                           SetVector<Value> &params,
                            SetVector<mlir::Value> &args) {
   SmallVector<Operation *, 8> worklist;
   worklist.push_back(writeOp);
   ops.insert(writeOp);
+
+  // Resolve the domain of the writeOp.
+  FlatAffineConstraints cst;
+  SmallVector<Operation *, 8> enclosingOps;
+  getEnclosingAffineForAndIfOps(*writeOp, &enclosingOps);
+  getIndexSet(enclosingOps, &cst);
 
   while (!worklist.empty()) {
     Operation *op = worklist.pop_back_val();
@@ -71,12 +101,16 @@ static void getScopStmtOps(Operation *writeOp, SetVector<Operation *> &ops,
     for (mlir::Value operand : op->getOperands()) {
       Operation *defOp = operand.getDefiningOp();
 
-      if (defOp && !isValidSymbol(operand) && !isValidDim(operand) &&
-          !ops.contains(defOp)) {
+      // Check whether the operand is of the domain or the global parameter set.
+      unsigned pos;
+      bool isOperandOfDomain =
+          cst.findId(operand, &pos) || params.contains(operand);
+
+      if (defOp && !isOperandOfDomain) {
         // We find the defining op and place it in the worklist, if it is not
-        // null, not a symbol, not a dim, and has not been visited yet. Symbols
-        // and dims should be defined in the global scope.
-        worklist.push_back(defOp);
+        // null, not an operand of the domain, and has not been visited yet.
+        if (!ops.contains(defOp)) // Don't nest this with other conditions.
+          worklist.push_back(defOp);
       } else {
         // Otherwise, stop the recursion at values that don't have a defining
         // op, i.e., block arguments, which could be loop IVs, external
@@ -158,9 +192,10 @@ static mlir::CallOp createCaller(mlir::FuncOp callee,
                                 ValueRange(args.getArrayRef()));
 }
 
-/// Remove those ops that are already in the callee, and not have uses by other
-/// ops. We will first sort these ops topologically, and then remove them in a
-/// reversed order.
+/// Remove those ops that are already in the callee (given by `opsToRemove`),
+/// and not have uses by other ops (need to be checked by getUses().empty()). We
+/// will first sort these ops topologically, and then remove them in a reversed
+/// order. This is like DCE on a subset of operations.
 static void removeExtractedOps(SetVector<Operation *> &opsToRemove) {
   opsToRemove = topologicalSort(opsToRemove);
   unsigned numOpsToRemove = opsToRemove.size();
@@ -182,6 +217,9 @@ static unsigned extractScopStmt(mlir::FuncOp f, unsigned numCallees,
   SmallVector<Operation *, 8> writeOps;
   discoverMemWriteOps(f, writeOps);
 
+  SetVector<Value> globalParams;
+  getGlobalContext(writeOps, globalParams);
+
   SetVector<Operation *> opsToRemove;
 
   unsigned numWriteOps = writeOps.size();
@@ -196,7 +234,7 @@ static unsigned extractScopStmt(mlir::FuncOp f, unsigned numCallees,
     // Get all the ops inside a statement that corresponds to the current write
     // operation.
     Operation *writeOp = writeOps[i];
-    getScopStmtOps(writeOp, ops, args);
+    getScopStmtOps(writeOp, ops, globalParams, args);
 
     // Get the name of the callee. Should be in the form of "S<id>".
     CalleeName calleeName;

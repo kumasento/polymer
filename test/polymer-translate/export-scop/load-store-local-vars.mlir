@@ -1,99 +1,119 @@
-// RUN: polymer-translate %s -export-scop -split-input-file | FileCheck %s
+// RUN: polymer-opt %s -reg2mem -extract-scop-stmt | FileCheck %s
+// RUN: polymer-opt %s -reg2mem -extract-scop-stmt -test-osl-scop-builder | FileCheck %s --check-prefix=BUILD
+// RUN: polymer-opt %s -reg2mem -extract-scop-stmt | polymer-translate -export-scop | FileCheck %s --check-prefix=OSL
 
 // Consider local variables in the domain.
 
 #map = affine_map<(d0) -> (d0 floordiv 2)>
+// CHECK: #[[MAP:.*]] = affine_map<(d0) -> (d0 floordiv 2)>
 
+// BUILD: #[[SET3:.*]] = affine_set<(d0, d1, d2)[s0] : (d1 - d2 == 0, d0 - 1 == 0)>
+// BUILD: #[[SET4:.*]] = affine_set<(d0, d1, d2)[s0] : (d1 - d2 - s0 floordiv 2 == 0, d0 - 1 == 0, s0 mod 2 >= 0, -s0 + (s0 floordiv 2) * 2 + 1 >= 0)>
+// BUILD: #[[SET5:.*]] = affine_set<(d0, d1, d2)[s0] : (d1 - d2 floordiv 2 - s0 floordiv 2 == 0, d0 - 1 == 0, d2 mod 2 >= 0, -d2 + (d2 floordiv 2) * 2 + 1 >= 0, s0 mod 2 >= 0, -s0 + (s0 floordiv 2) * 2 + 1 >= 0)>
+
+// CHECK-LABEL: func @load_store_local_vars_floordiv
+// BUILD-LABEL: func @load_store_local_vars_floordiv
 func @load_store_local_vars_floordiv(%A : memref<?xf32>) -> () {
   %c0 = constant 0 : index
+  // CHECK: %[[VAL0:.*]] = dim
+  // BUILD: %[[VAL0:.*]] = dim
   %N = dim %A, %c0 : memref<?xf32>
-  %M = affine.apply #map(%N)
+  // BUILD: scop.param_names = ["P1"]
 
+  // CHECK: %[[VAL1:.*]] = affine.apply
+  // BUILD: %[[VAL1:.*]] = affine.apply
+  %M = affine.apply #map(%N)
+  
+  // CHECK: affine.for %[[ARG1:.*]] = 0 to %[[VAL1]]
+  // BUILD: affine.for %[[ARG1:.*]] = 0 to %[[VAL1]]
   affine.for %i = 0 to %M {
     %0 = affine.load %A[%i] : memref<?xf32>
+    %j = affine.apply #map(%i)
+    %1 = addf %0, %0 : f32
     affine.store %0, %A[%i + %M] : memref<?xf32>
+    // CHECK: call @S0(%{{.*}}, %[[ARG1]], %[[VAL0]])
+    // BUILD: call @S0(%{{.*}}, %[[ARG1]], %[[VAL0]])
+
+    affine.store %1, %A[%j + %M] : memref<?xf32>
+    // CHECK: call @S1(%{{.*}}, %[[VAL0]], %[[ARG1]])
+    // BUILD: call @S1(%{{.*}}, %[[VAL0]], %[[ARG1]])
   }
+  // BUILD: scop.iv_name = "i1"
 
   return
 }
 
-// CHECK: <OpenScop>
-// 
-// CHECK: # =============================================== Global
-// CHECK: # Language
-// CHECK: C
-//
-// CHECK: # Context
-// CHECK: CONTEXT
-// CHECK: 1 3 0 0 0 1
-// CHECK: # e/i| P0 |  1  
-// CHECK:    1    1   -2    ## P0-2 >= 0
-//
-// CHECK: # Parameters are provided
-// CHECK: 1
-// CHECK: <strings>
-// CHECK: P0
-// CHECK: </strings>
-//
-// CHECK: # Number of statements
-// CHECK: 1
-//
-// CHECK: # =============================================== Statement 1
-// CHECK: # Number of relations describing the statement:
-// CHECK: 4
-//
-// CHECK: # ----------------------------------------------  1.1 Domain
-// CHECK: DOMAIN
-// CHECK: 4 5 1 0 1 1
-// CHECK: # e/i| i0 | l1 | P0 |  1  
-// CHECK:    1    1    0    0    0    ## i0 >= 0
-// CHECK:    1    0   -2    1    0    ## -2*l1+P0 >= 0
-// CHECK:    1    0    2   -1    1    ## 2*l1-P0+1 >= 0
-// CHECK:    1   -1    1    0   -1    ## -i0+l1-1 >= 0
-//
-// CHECK: # ----------------------------------------------  1.2 Scattering
-// CHECK: SCATTERING
-// CHECK: 3 8 3 1 1 1
-// CHECK: # e/i| c1   c2   c3 | i0 | l1 | P0 |  1  
-// CHECK:    0   -1    0    0    0    0    0    0    ## c1 == 0
-// CHECK:    0    0   -1    0    1    0    0    0    ## c2 == i0
-// CHECK:    0    0    0   -1    0    0    0    0    ## c3 == 0
-//
-// CHECK: # ----------------------------------------------  1.3 Access
-// CHECK: WRITE
-// CHECK: 2 7 2 1 1 1
-// CHECK: # e/i| Arr  [1]| i0 | l1 | P0 |  1  
-// CHECK:    0   -1    0    0    0    0    1    ## Arr == A1
-// CHECK:    0    0   -1    1    1    0    0    ## [1] == i0+l1
-//
-// CHECK: READ
-// CHECK: 2 7 2 1 1 1
-// CHECK: # e/i| Arr  [1]| i0 | l1 | P0 |  1  
-// CHECK:    0   -1    0    0    0    0    1    ## Arr == A1
-// CHECK:    0    0   -1    1    0    0    0    ## [1] == i0
-//
-// CHECK: # ----------------------------------------------  1.4 Statement Extensions
-// CHECK: # Number of Statement Extensions
-// CHECK: 1
-// CHECK: <body>
-// CHECK: # Number of original iterators
-// CHECK: 1
-// CHECK: # List of original iterators
-// CHECK: i0
-// CHECK: # Statement body expression
-// CHECK: S0(A1, 1, A1, 1, i0)
-// CHECK: </body>
-//
-// CHECK: # =============================================== Extensions
-// CHECK: <arrays>
-// CHECK: # Number of arrays
-// CHECK: 1
-// CHECK: # Mapping array-identifiers/array-names
-// CHECK: 1 A1
-// CHECK: </arrays>
-//
-// CHECK: <scatnames>
-// CHECK: c0 i0 c2
-// CHECK: </scatnames>
-//
-// CHECK: </OpenScop>
+// CHECK-LABEL: func @S0
+// CHECK: %[[VAL0:.*]] = affine.load
+// CHECK: %[[VAL1:.*]] = affine.apply #[[MAP]]
+// CHECK: affine.store %[[VAL0]], %{{.*}}[%{{.*}} + %[[VAL1]]]
+
+// BUILD-LABEL: func @S0
+// BUILD: scop.access = #[[SET3]]
+// BUILD: scop.access = #[[SET4]]
+
+// CHECK-LABEL: func @S1
+// CHECK: %[[VAL0:.*]] = affine.load
+// CHECK: %[[VAL1:.*]] = addf %[[VAL0]], %[[VAL0]]
+// CHECK: %[[VAL2:.*]] = affine.apply #[[MAP]](%{{.*}})
+// CHECK: %[[VAL3:.*]] = affine.apply #[[MAP]](%{{.*}})
+// CHECK: affine.store %[[VAL1]], %{{.*}}[%[[VAL2]] + %[[VAL3]]]
+
+// BUILD-LABEL: func @S1
+// BUILD: scop.access = #[[SET3]]
+// BUILD: scop.access = #[[SET5]]
+
+// OSL-LABEL: <OpenScop>
+
+// OSL-LABEL: # Context
+// OSL: CONTEXT
+// OSL: 0 3 0 0 0 1
+
+// OSL-LABEL: # Parameters are provided
+// OSL: 1
+// OSL: <strings>
+// OSL: P1
+// OSL: </strings>
+
+// OSL-LABEL: # Number of statements
+// OSL: 2
+
+// OSL-LABEL: Statement 1
+
+// OSL-LABEL: DOMAIN
+// OSL: 4 5 1 0 1 1
+// OSL: # e/i| i1 | l1 | P1 |  1  
+// OSL:    1    1    0    0    0    ## i1 >= 0
+// OSL:    1    0   -2    1    0    ## -2*l1+P1 >= 0
+// OSL:    1    0    2   -1    1    ## 2*l1-P1+1 >= 0
+// OSL:    1   -1    1    0   -1    ## -i1+l1-1 >= 0
+
+// OSL-LABEL: WRITE
+// OSL: 4 8 2 1 2 1
+// OSL: # e/i| Arr  [1]| i1 | l1   l2 | P1 |  1  
+// OSL:    0    0   -1    1    1    0    0    0    ## [1] == i1+l1
+// OSL:    0   -1    0    0    0    0    0    1    ## Arr == A1
+// OSL:    1    0    0    0   -2    0    1    0    ## -2*l1+P1 >= 0
+// OSL:    1    0    0    0    2    0   -1    1    ## 2*l1-P1+1 >= 0
+
+
+// OSL-LABEL: Statement 2
+
+// OSL-LABEL: DOMAIN
+// OSL: 4 5 1 0 1 1
+// OSL: # e/i| i1 | l1 | P1 |  1  
+// OSL:    1    1    0    0    0    ## i1 >= 0
+// OSL:    1    0   -2    1    0    ## -2*l1+P1 >= 0
+// OSL:    1    0    2   -1    1    ## 2*l1-P1+1 >= 0
+// OSL:    1   -1    1    0   -1    ## -i1+l1-1 >= 0
+
+
+// OSL-LABEL: WRITE
+// OSL: 6 9 2 1 3 1
+// OSL: # e/i| Arr  [1]| i1 | l1   l2   l3 | P1 |  1  
+// OSL:    0    0   -1    0    1    1    0    0    0    ## [1] == l1+l2
+// OSL:    0   -1    0    0    0    0    0    0    1    ## Arr == A1
+// OSL:    1    0    0    1   -2    0    0    0    0    ## i1-2*l1 >= 0
+// OSL:    1    0    0   -1    2    0    0    0    1    ## -i1+2*l1+1 >= 0
+// OSL:    1    0    0    0    0   -2    0    1    0    ## -2*l2+P1 >= 0
+// OSL:    1    0    0    0    0    2    0   -1    1    ## 2*l2-P1+1 >= 0

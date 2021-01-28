@@ -221,12 +221,11 @@ public:
   /// accesses to and its ID, the access AffineValueMap, and the domain
   /// constraints.
   osl_relation *addAccessRelation(const osl_statement *stmt, bool isRead,
-                                  mlir::Value memref, unsigned memId,
-                                  mlir::AffineValueMap &vMap,
-                                  const mlir::FlatAffineConstraints &domain);
-  osl_relation *addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
-                                  unsigned memId, mlir::AffineValueMap &vMap,
-                                  const mlir::FlatAffineConstraints &domain);
+                                  const mlir::FlatAffineConstraints &domain,
+                                  const mlir::FlatAffineConstraints &cst);
+  osl_relation *addAccessRelation(int stmtId, bool isRead,
+                                  const mlir::FlatAffineConstraints &domain,
+                                  const mlir::FlatAffineConstraints &cst);
 
   /// ------------------------- Extensions ------------------------------------
 

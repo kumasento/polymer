@@ -539,66 +539,33 @@ OslScop::addScatteringRelation(int stmtId,
                        inEqs, scop);
 }
 
-/// Use FlatAffineConstraints to represent the access relation, given by the
-/// AffineValueMap vMap. Result is returned as cst.
-static void getAccessRelationConstraints(mlir::AffineValueMap &vMap,
-                                         mlir::Value memref, unsigned memId,
-                                         mlir::FlatAffineConstraints domain,
-                                         mlir::FlatAffineConstraints &cst) {
-  cst.reset();
-  cst.mergeAndAlignIdsWithOther(0, &domain);
-
-  SmallVector<mlir::Value, 8> idValues;
-  domain.getAllIdValues(&idValues);
-  llvm::SetVector<mlir::Value> idValueSet;
-  for (auto val : idValues)
-    idValueSet.insert(val);
-
-  // Values in the vMap should be in the domain as well.
-  for (auto operand : vMap.getOperands()) {
-    assert(operand != nullptr && "vMap operand shouldn't be null.");
-    assert(idValueSet.contains(operand) &&
-           "Values in the vMap should be in the domain as well.");
-  }
-
-  // The results of the affine value map, which are the access addresses, will
-  // be placed to the leftmost of all columns.
-  cst.composeMap(&vMap);
-
-  // Add the memref equation.
-  cst.addDimId(0, memref);
-  cst.setIdToConstant(0, memId);
-}
-
 osl_relation *OslScop::addAccessRelation(const osl_statement *stmt, bool isRead,
-                                         mlir::Value memref, unsigned memId,
-                                         mlir::AffineValueMap &vMap,
-                                         const FlatAffineConstraints &domain) {
-  return addAccessRelation(getStatementId(stmt), isRead, memref, memId, vMap,
-                           domain);
+                                         const FlatAffineConstraints &domain,
+                                         const FlatAffineConstraints &cst) {
+  return addAccessRelation(getStatementId(stmt), isRead, domain, cst);
 }
 
 osl_relation *OslScop::addAccessRelation(int stmtId, bool isRead,
-                                         mlir::Value memref, unsigned memId,
-                                         mlir::AffineValueMap &vMap,
-                                         const FlatAffineConstraints &domain) {
-  FlatAffineConstraints cst;
-
-  // Insert the address dims and put constraints in it.
-  getAccessRelationConstraints(vMap, memref, memId, domain, cst);
-
+                                         const FlatAffineConstraints &domain,
+                                         const FlatAffineConstraints &cst) {
   SmallVector<int64_t, 8> eqs, inEqs;
-  // inEqs will be left empty.
   getConstraintRows(cst, eqs);
+  getConstraintRows(cst, inEqs, /*isEq=*/false);
 
   // We need to reverse the sign otherwise we may trigger issues in Pluto.
   for (unsigned i = 0; i < eqs.size(); i++)
     eqs[i] = -eqs[i];
 
   // Then put them into the scop as an ACCESS relation.
-  unsigned numOutputDims = cst.getNumConstraints();
-  assert(numOutputDims > 0);
-
+  // We find the number of output dims by counting how many consecutive dim IDs
+  // don't have Value associated.
+  unsigned numOutputDims = 1;
+  for (unsigned pos = 1; pos < cst.getNumDimIds(); pos++) {
+    if (!cst.getId(pos).hasValue())
+      numOutputDims++;
+    else
+      break;
+  }
   unsigned numInputDims = cst.getNumDimIds() - numOutputDims;
 
   return ::addRelation(stmtId + 1, isRead ? OSL_TYPE_READ : OSL_TYPE_WRITE,

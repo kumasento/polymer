@@ -172,29 +172,6 @@ void ScopStmt::getAccesses(
   });
 }
 
-static mlir::Value findBlockArg(mlir::Value v) {
-  mlir::Value r = v;
-  while (r != nullptr) {
-    // A block argument is found.
-    if (r.isa<mlir::BlockArgument>())
-      break;
-
-    mlir::Operation *defOp = r.getDefiningOp();
-
-    assert((defOp && defOp->getNumOperands() == 1) &&
-           "The defining op should exist and has a single operand.");
-    assert(isa<mlir::IndexCastOp>(defOp) &&
-           "Can only propagate through IndexCastOp.");
-
-    r = defOp->getOperand(0);
-  }
-
-  assert(r != nullptr &&
-         "Cannot find the top-level counterpart for the given value.");
-
-  return r;
-}
-
 void ScopStmt::getAccessMap(const MemRefAccess &access,
                             AffineValueMap &vMap) const {
   // Get the default access map.
@@ -226,6 +203,13 @@ void ScopStmt::getAccessMap(const MemRefAccess &access,
 void ScopStmt::getAccessConstraints(const mlir::MemRefAccess &access,
                                     const OslScopSymbolTable &symbolTable,
                                     mlir::FlatAffineConstraints &cst) const {
+  getAccessConstraints(access, symbolTable, cst, getDomain());
+}
+
+void ScopStmt::getAccessConstraints(const mlir::MemRefAccess &access,
+                                    const OslScopSymbolTable &symbolTable,
+                                    mlir::FlatAffineConstraints &cst,
+                                    mlir::FlatAffineConstraints domain) const {
   // Get caller/callee value mappings.
   BlockAndValueMapping argMap;
   impl->getArgsValueMapping(argMap);
@@ -234,14 +218,17 @@ void ScopStmt::getAccessConstraints(const mlir::MemRefAccess &access,
   mlir::AffineValueMap vMap;
   getAccessMap(access, vMap);
 
-  FlatAffineConstraints domain(getDomain()); // Copy of the original domain.
   cst.reset();
   cst.mergeAndAlignIdsWithOther(0, &domain);
+
+  unsigned numSymbols = vMap.getAffineMap().getNumSymbols();
+  cst.setDimSymbolSeparation(numSymbols);
 
   // The results of the affine value map, which are the access addresses, will
   // be placed to the leftmost of all columns.
   cst.composeMap(&vMap);
 
+  cst.setDimSymbolSeparation(domain.getNumSymbolIds());
   // Add the memref equation.
   mlir::Value memref = argMap.lookup(access.memref);
   cst.addDimId(0, memref);
@@ -259,26 +246,10 @@ void ScopStmt::getAccessMapAndMemRef(mlir::Operation *op,
   BlockAndValueMapping argMap;
   impl->getArgsValueMapping(argMap);
 
-  MemRefAccess access(op);
-
   // Collect the access AffineValueMap that binds to operands in the callee.
-  AffineValueMap aMap;
-  access.getAccessMap(&aMap);
+  MemRefAccess access(op);
+  getAccessMap(access, *vMap);
 
-  // Replace its operands by what the caller uses.
-  SmallVector<mlir::Value, 8> operands;
-  for (Value operand : aMap.getOperands()) {
-    assert(operand != nullptr && "aMap operand shouldn't be null.");
-
-    mlir::Value origArg = findBlockArg(argMap.lookupOrDefault(operand));
-
-    assert(origArg != nullptr && "origArg shouldn't be null.");
-    assert(origArg != operand);
-    operands.push_back(origArg);
-  }
-
-  // Set the access AffineValueMap.
-  vMap->reset(aMap.getAffineMap(), operands);
   // Set the memref.
   *memref = argMap.lookup(access.memref);
 }

@@ -81,6 +81,10 @@ public:
   /// all dim values.
   void getAccessConstraints(const mlir::MemRefAccess &access,
                             const OslScopSymbolTable &symbolTable,
+                            mlir::FlatAffineConstraints &cst,
+                            mlir::FlatAffineConstraints domain) const;
+  void getAccessConstraints(const mlir::MemRefAccess &access,
+                            const OslScopSymbolTable &symbolTable,
                             mlir::FlatAffineConstraints &cst) const;
 
   /// Get the access AffineValueMap of an op in the callee and the memref in the
