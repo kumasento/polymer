@@ -6,71 +6,282 @@
 #ifndef POLYMER_SUPPORT_OSLSCOP_H
 #define POLYMER_SUPPORT_OSLSCOP_H
 
-#include "mlir/Support/LLVM.h"
+#include "polymer/Support/ScatTree.h"
+#include "polymer/Support/ScopStmt.h"
+
+#include "osl/osl.h"
 
 #include <cassert>
 #include <cstdint>
+#include <memory>
 #include <vector>
 
-struct osl_scop;
-struct osl_statement;
-struct osl_generic;
+#include "mlir/Support/LLVM.h"
+
+#include "llvm/ADT/StringMap.h"
 
 namespace mlir {
 struct LogicalResult;
-}
+class FlatAffineConstraints;
+class Value;
+class Operation;
+class AffineValueMap;
+class CallOp;
+class FuncOp;
+} // namespace mlir
 
 namespace polymer {
 
-/// A wrapper for the osl_scop struct in the openscop library.
+/// Container for the symbol table that maps from symbols used in OslScop to
+/// MLIR values.
+class OslScopSymbolTable {
+public:
+  using Container = llvm::StringMap<mlir::Value>;
+
+  enum SymbolType { NOT_A_SYMBOL, MEMREF, INDVAR, PARAMETER, CONSTANT };
+
+  /// Get a const reference to the symbol table.
+  const Container &getSymbolTable() const;
+
+  /// Find symbol from the symbol table for the given Value. Return an empty
+  /// symbol if not found.
+  llvm::StringRef lookup(mlir::Value value) const;
+  llvm::StringRef lookup(mlir::Value value, unsigned *numSymbolsOfType) const;
+
+  /// Find the value that the given symbol is associated with.
+  mlir::Value lookup(llvm::StringRef) const;
+
+  /// Return the found symbol without its prefix.
+  int64_t lookupId(mlir::Value) const;
+
+  /// Find the symbol for the given Value. If not exists, create a new one based
+  /// on the hardcoded rule.
+  llvm::StringRef lookupOrCreate(mlir::Value value);
+
+  /// Insert a symbol, value pair into the container.
+  void insert(llvm::StringRef, mlir::Value);
+
+  /// Erase a symbol.
+  void erase(llvm::StringRef);
+
+  /// Get the symbol prefix ('A', 'i', 'P', etc.) based on the symbol type.
+  static llvm::StringRef getPrefix(SymbolType type);
+  /// Get the symbol prefix ('A', 'i', 'P', etc.) based on the value type.
+  static llvm::StringRef getPrefix(mlir::Value value);
+
+  /// Get the symbol type based on the symbol content.
+  static SymbolType getType(llvm::StringRef symbol);
+  /// Get the symbol type based on the MLIR value.
+  static SymbolType getType(mlir::Value value);
+
+  /// Remove the prefix and leave only the numerical part.
+  static llvm::StringRef dropPrefix(llvm::StringRef symbol, SymbolType type);
+
+private:
+  Container symbolTable;
+};
+
+/// Container for the mapping between symbols and ScopStmts.
+class OslScopStmtMap {
+public:
+  using Container = llvm::StringMap<ScopStmt>;
+  using Symbols = llvm::SmallVector<llvm::StringRef, 8>;
+
+  using iterator = Container::iterator;
+  using const_iterator = Container::const_iterator;
+
+  /// Iterators over the internal map. Note that they do not keep the insertion
+  /// order.
+  iterator begin() { return map.begin(); }
+  iterator end() { return map.end(); }
+  const_iterator begin() const { return map.begin(); }
+  const_iterator end() const { return map.end(); }
+
+  /// Lookup by ScopStmt symbol.
+  const ScopStmt &lookup(llvm::StringRef key) const;
+
+  /// Get the size of the map.
+  unsigned size() const { return map.size(); }
+
+  /// Insert a ScopStmt into the map. A new entry will be initialized in
+  /// scopStmtMap and its symbol will be appended to scopStmtSymbols.
+  void insert(ScopStmt scopStmt);
+  void insert(mlir::CallOp caller, mlir::FuncOp callee);
+
+  /// Build context constraints from the scopStmtMap. The context is basically a
+  /// union of all domain constraints. Its ID values will be used to derive the
+  /// symbol table. Note that the context we get from this API cannot be
+  /// directly used to create the context relation for OpenScop. We should
+  /// remove all the IDs that are not symbol.
+  mlir::FlatAffineConstraints getContext() const;
+
+  /// Return the keys as stored in scopStmtSymbols.
+  const Symbols &getKeys() const;
+
+private:
+  Container map;
+  Symbols keys;
+};
+
+/// A wrapper for the osl_scop struct in the openscop library. It mainly
+/// provides functionalities for accessing the contents in a osl_scop, and
+/// the methods for adding new relations. It also holds a symbol table that maps
+/// between a symbol in the OpenScop representation and a Value in the original
+/// MLIR input. It manages the life-cycle of the osl_scop object passed in
+/// through unique_ptr.
 class OslScop {
 public:
+  using SymbolTable = llvm::StringMap<mlir::Value>;
+  using ScopStmtMap = llvm::StringMap<ScopStmt>;
+  using osl_scop_unique_ptr =
+      std::unique_ptr<osl_scop_t, decltype(osl_scop_free) *>;
+
+  static constexpr const char *const SCOP_STMT_ATTR_NAME = "scop.stmt";
+  static constexpr const char *const SCOP_STMT_DOMAIN_NAME = "scop.domain";
+  static constexpr const char *const SCOP_STMT_DOMAIN_SYMBOLS_NAME =
+      "scop.domain_symbols";
+  static constexpr const char *const SCOP_STMT_ACCESS_NAME = "scop.access";
+  static constexpr const char *const SCOP_STMT_ACCESS_SYMBOLS_NAME =
+      "scop.access_symbols";
+  static constexpr const char *const SCOP_STMT_SCATS_NAME = "scop.scats";
+  static constexpr const char *const SCOP_IV_NAME_ATTR_NAME = "scop.iv_name";
+  static constexpr const char *const SCOP_PARAM_NAMES_ATTR_NAME =
+      "scop.param_names";
+  static constexpr const char *const SCOP_ARG_NAMES_ATTR_NAME =
+      "scop.arg_names";
+
+private:
+  /// The osl_scop object being managed.
+  osl_scop_unique_ptr scop;
+
+public:
   OslScop();
-  OslScop(osl_scop *scop) : scop(scop) {}
+  OslScop(osl_scop *scop) : scop(osl_scop_unique_ptr{scop, osl_scop_free}) {}
+  OslScop(osl_scop_unique_ptr scop) : scop(std::move(scop)) {}
+
+  /// No copy constructor or copy assignment is allowed for OslScop.
+  OslScop(const OslScop &) = delete;
+  OslScop &operator=(const OslScop &) = delete;
 
   ~OslScop();
 
   /// Get the raw scop pointer.
-  osl_scop *get() { return scop; }
+  osl_scop *get() { return scop.get(); }
 
-  /// Print the content of the Scop to the stdout.
-  void print();
+  /// Print the content of the Scop to the stdout. By default print to stderr.
+  void print(FILE *fp = stderr) const;
 
-  /// Validate whether the scop is well-formed.
-  bool validate();
+  /// Validate whether the scop is well-formed. This will call the
+  /// osl_scop_integrity_check function from OpenScop.
+  bool validate() const;
+
+  /// Iterate all access relations to find the number of dims of the given
+  /// array.
+  unsigned getNumDimsOfArray(unsigned id) const;
+
+  /// ------------------------- Statements -------------------------------------
 
   /// Simply create a new statement in the linked list scop->statement.
-  void createStatement();
+  osl_statement *createStatement();
 
-  /// Create a new relation and initialize its contents. The new relation will
-  /// be created under the scop member.
-  /// The target here is an index:
-  /// 1) if it's 0, then it means the context;
-  /// 2) otherwise, if it is a positive number, it corresponds to a statement of
-  /// id=(target-1).
+  /// Get the index of a statement. An assertion will be triggered if there is
+  /// no such a statement in the scop.
+  unsigned getStatementId(const osl_statement *) const;
+
+  /// Get statement by index.
+  osl_statement *getStatement(unsigned index) const;
+
+  /// Get the total number of statements
+  unsigned getNumStatements() const;
+
+  /// ------------------------- Relations -------------------------------------
+
+  /// TODO: Should remove this.
   void addRelation(int target, int type, int numRows, int numCols,
                    int numOutputDims, int numInputDims, int numLocalDims,
                    int numParams, llvm::ArrayRef<int64_t> eqs,
                    llvm::ArrayRef<int64_t> inEqs);
 
-  /// Add a new generic field to a statement. `target` gives the statement ID.
-  /// `content` specifies the data field in the generic.
-  void addGeneric(int target, llvm::StringRef tag, llvm::StringRef content);
+  /// Add the relation defined by the context constraints (cst) to the context
+  /// of the current scop. The cst passed in should contain all the parameters
+  /// in all the domain relations. Also, the order of parameters in the cst
+  /// should be consistent with all the domain constraints. There shouldn't be
+  /// any dim or local IDs in the constraint, only symbol IDs (parameters) are
+  /// allowed.
+  osl_relation *addContextRelation(const mlir::FlatAffineConstraints &cst);
 
-  /// Check whether the name refers to a symbol.
-  bool isSymbol(llvm::StringRef name);
+  /// Add the domain relation to the statement denoted by ID. We don't do any
+  /// additional validation in this function. We simply get the flattened array
+  /// of equalities and inequalities from the cst and add it to the target
+  /// statement. stmtId starts from 0.
+  osl_relation *addDomainRelation(const osl_statement *stmt,
+                                  const mlir::FlatAffineConstraints &cst);
+  osl_relation *addDomainRelation(int stmtId,
+                                  const mlir::FlatAffineConstraints &cst);
 
-  /// Get statement by index.
-  mlir::LogicalResult getStatement(unsigned index, osl_statement **stmt);
+  /// Add the scattering relation to the target statement (given by stmtId).
+  /// `domain` is the domain of the statement that this scattering relation is
+  /// added to. ops are the enclosing affine.for of the current statement.
+  osl_relation *addScatteringRelation(const osl_statement *stmt,
+                                      const mlir::FlatAffineConstraints &domain,
+                                      llvm::ArrayRef<unsigned> scats);
+  osl_relation *addScatteringRelation(int stmtId,
+                                      const mlir::FlatAffineConstraints &domain,
+                                      llvm::ArrayRef<unsigned> scats);
 
-  /// Get the total number of statements
-  unsigned getNumStatements() const;
+  /// Add the access relation to the target statement (given by stmtId or stmt).
+  /// We should provide whether the access is a read/write, which memref it
+  /// accesses to and its ID, the access AffineValueMap, and the domain
+  /// constraints.
+  osl_relation *addAccessRelation(const osl_statement *stmt, bool isRead,
+                                  const mlir::FlatAffineConstraints &domain,
+                                  const mlir::FlatAffineConstraints &cst);
+  osl_relation *addAccessRelation(int stmtId, bool isRead,
+                                  const mlir::FlatAffineConstraints &domain,
+                                  const mlir::FlatAffineConstraints &cst);
 
-  /// Get extension by interface name
-  osl_generic *getExtension(llvm::StringRef interface) const;
+  /// ------------------------- Extensions ------------------------------------
 
-private:
-  osl_scop *scop;
+  /// TODO: Should remove this soon.
+  osl_generic *addGeneric(int target, llvm::StringRef tag,
+                          llvm::StringRef content);
+
+  /// Get extension by the tag name. tag can be strings like "body", "array",
+  /// etc. This function goes through the whole scop (not including each
+  /// statement) to find is there an extension that matches the tag.
+  osl_generic *getExtension(llvm::StringRef tag) const;
+
+  /// Add parameter names to the <strings> extension of scop->parameters from
+  /// the symbol table.
+  osl_generic *addParameterNames(const OslScopSymbolTable &);
+
+  /// Get the list of parameter names from scop->parameters.
+  osl_strings *getParameterNames() const;
+
+  /// Create strings based on the depth of the scat tree and add them
+  /// to the <scatnames> extension.
+  osl_generic *addScatnames(const ScatTreeNode &);
+
+  /// Get the <scatnames> content from scop->extension.
+  osl_strings *getScatnames() const;
+
+  /// Create the <arrays> extension from the symbol table.
+  osl_generic *addArrays(const OslScopSymbolTable &);
+
+  /// Get the <arrays> content from scop->extension.
+  osl_arrays *getArrays() const;
+
+  /// Add the <body> extension content from the given ScopStmt object.
+  osl_generic *addBody(osl_statement *, const ScopStmt &,
+                       const OslScopSymbolTable &);
+
+  /// Add the function signature to a <strings> tag in the scop->extension
+  /// section.
+  osl_generic *addFunctionSignature(mlir::FuncOp, const OslScopSymbolTable &);
+
+  /// Search for the extensions and find if there is a <strings> tag that has a
+  /// single line in it.
+  llvm::StringRef getFunctionSignature() const;
 };
 
 } // namespace polymer

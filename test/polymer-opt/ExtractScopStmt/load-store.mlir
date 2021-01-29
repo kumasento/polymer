@@ -189,9 +189,6 @@ func @write_const(%A: memref<?xf32>) {
 
 // -----
 
-// AffineApplyOp result used in both loop bounds and load/store addresses
-// should be treated differently.
-
 #map0 = affine_map<(d0)[s0] -> (-d0 + s0 - 1)>
 #map1 = affine_map<(d0) -> (d0)>
 
@@ -202,13 +199,48 @@ func @use_affine_apply(%A: memref<?x?xf32>) {
   %NJ = dim %A, %c1 : memref<?x?xf32>
 
   affine.for %i = 0 to %NI {
-    %0 = affine.apply #map0(%i)[%NI]
-    affine.for %j = #map1(%0) to %NJ {
-      %1 = affine.load %A[%0, %j] : memref<?x?xf32>
-      %2 = addf %1, %1 : f32 
-      affine.store %2, %A[%0, %j] : memref<?x?xf32>
+    %cst = constant 1.23 : f32
+    %0 = affine.apply #map0(%i)[%NJ]
+    affine.store %cst, %A[0, %0] : memref<?x?xf32>
+
+    %1 = affine.apply #map0(%i)[%NI]
+    affine.for %j = #map1(%1) to %NJ {
+      %2 = affine.load %A[%1, %j] : memref<?x?xf32>
+      %3 = addf %2, %2 : f32 
+      affine.store %3, %A[%1, %j] : memref<?x?xf32>
     }
   }
 
   return
 } 
+
+// CHECK-DAG: #[[MAP0:.*]] = affine_map<(d0)[s0] -> (-d0 + s0 - 1)>
+// CHECK-DAG: #[[MAP1:.*]] = affine_map<(d0) -> (d0)>
+
+// CHECK: func @use_affine_apply(%[[ARG0:.*]]: memref<?x?xf32>) {
+// CHECK-NEXT:    %[[C0:.*]] = constant 0 : index
+// CHECK-NEXT:    %[[C1:.*]] = constant 1 : index
+// CHECK-NEXT:    %[[VAL0:.*]] = dim %[[ARG0]], %[[C0]] : memref<?x?xf32>
+// CHECK-NEXT:    %[[VAL1:.*]] = dim %[[ARG0]], %[[C1]] : memref<?x?xf32>
+// CHECK-NEXT:    affine.for %[[ARG1:.*]] = 0 to %[[VAL0]] {
+// CHECK-NEXT:      call @[[S0:.*]](%[[ARG0]], %[[ARG1]], %[[VAL1]]) 
+// CHECK-NEXT:      %[[VAL2:.*]] = affine.apply #[[MAP0]](%[[ARG1]])[%[[VAL0]]]
+// CHECK-NEXT:      affine.for %[[ARG2:.*]] = #[[MAP1]](%[[VAL2]]) to %[[VAL1]] {
+// CHECK-NEXT:        call @[[S1:.*]](%[[ARG0]], %[[ARG2]], %[[ARG1]], %[[VAL0]]) 
+// CHECK-NEXT:      }
+// CHECK-NEXT:    }
+// CHECK-NEXT:    return
+// CHECK-NEXT:  }
+
+// CHECK: func @[[S0]](%[[ARG0:.*]]: memref<?x?xf32>, %[[ARG1:.*]]: index, %[[ARG2:.*]]: index)
+// CHECK-NEXT: %[[CST:.*]] = constant {{.*}} : f32
+// CHECK-NEXT: %[[VAL0:.*]] = affine.apply #[[MAP0]](%[[ARG1]])[%[[ARG2]]]
+// CHECK-NEXT: affine.store %[[CST]], %[[ARG0]][0, %[[VAL0]]]
+
+// CHECK: func @[[S1]](%[[ARG0:.*]]: memref<?x?xf32>, %[[ARG1:.*]]: index, %[[ARG2:.*]]: index, %[[ARG3:.*]]: index) attributes {scop.stmt} {
+// CHECK-NEXT:    %[[VAL0:.*]] = affine.apply #[[MAP0]](%[[ARG2]])[%[[ARG3]]]
+// CHECK-NEXT:    %[[VAL1:.*]] = affine.load %[[ARG0]][%[[VAL0]], %[[ARG1]]] : memref<?x?xf32>
+// CHECK-NEXT:    %[[VAL2:.*]] = addf %[[VAL1]], %[[VAL1]] : f32
+// CHECK-NEXT:    affine.store %[[VAL2]], %[[ARG0]][%[[VAL0]], %[[ARG1]]] : memref<?x?xf32>
+// CHECK-NEXT:    return
+// CHECK-NEXT:  }

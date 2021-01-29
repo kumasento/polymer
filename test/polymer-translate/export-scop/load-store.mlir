@@ -1,85 +1,74 @@
-// RUN: polymer-translate %s -export-scop | FileCheck %s
+// RUN: polymer-opt %s -extract-scop-stmt | FileCheck %s
+// RUN: polymer-opt %s -extract-scop-stmt -test-osl-scop-builder | FileCheck %s --check-prefix=BUILDER
+// RUN: polymer-opt %s -extract-scop-stmt | polymer-translate -export-scop | FileCheck %s --check-prefix=OSL
 
-func @load_store() -> () {
+// BUILDER: #[[SET:.*]] = affine_set<(d0) : (d0 >= 0, -d0 + 31 >= 0)>
+
+func @load_store() {
   %A = alloc() : memref<32xf32>
+  // BUILDER-LABEL: %{{.*}} = alloc()
+  // BUILDER: scop.param_names = ["A1"]
+
   affine.for %i = 0 to 32 {
+    // BUILDER-LABEL: call @S0
+    // BUILDER: scop.domain = #[[SET]]
+    // BUILDER: scop.domain_symbols = ["i1"]
     %0 = affine.load %A[%i] : memref<32xf32>
     affine.store %0, %A[%i] : memref<32xf32>
   }
+  // BUILDER: scop.iv_name = "i1"
+
   return
 }
 
-// CHECK: <OpenScop>
-//
-// CHECK: # =============================================== Global
-// CHECK: # Language
-// CHECK: C
-// 
-// CHECK: # Context
-// CHECK: CONTEXT
-// CHECK: 0 2 0 0 0 0
-// 
-// CHECK: # Parameters are not provided
-// CHECK: 0
-//
-//
-// CHECK: # Number of statements
-// CHECK: 1
-//
-// CHECK: # =============================================== Statement 1
-// CHECK: # Number of relations describing the statement:
-// CHECK: 4
-//
-// CHECK: # ----------------------------------------------  1.1 Domain
-// CHECK: DOMAIN
-// CHECK: 2 3 1 0 0 0
-// CHECK: # e/i| i0 |  1  
-// CHECK:    1    1    0    ## i0 >= 0
-// CHECK:    1   -1   31    ## -i0+31 >= 0
-//
-// CHECK: # ----------------------------------------------  1.2 Scattering
-// CHECK: SCATTERING
-// CHECK: 3 6 3 1 0 0
-// CHECK: # e/i| c1   c2   c3 | i0 |  1  
-// CHECK:    0   -1    0    0    0    0    ## c1 == 0
-// CHECK:    0    0   -1    0    1    0    ## c2 == i0
-// CHECK:    0    0    0   -1    0    0    ## c3 == 0
-//
-// CHECK: # ----------------------------------------------  1.3 Access
-// CHECK: WRITE
-// CHECK: 2 5 2 1 0 0
-// CHECK: # e/i| Arr  [1]| i0 |  1  
-// CHECK:    0   -1    0    0    1    ## Arr == A1
-// CHECK:    0    0   -1    1    0    ## [1] == i0
-//
-// CHECK: READ
-// CHECK: 2 5 2 1 0 0
-// CHECK: # e/i| Arr  [1]| i0 |  1  
-// CHECK:    0   -1    0    0    1    ## Arr == A1
-// CHECK:    0    0   -1    1    0    ## [1] == i0
-//
-// CHECK: # ----------------------------------------------  1.4 Statement Extensions
-// CHECK: # Number of Statement Extensions
-// CHECK: 1
-// CHECK: <body>
-// CHECK: # Number of original iterators
-// CHECK: 1
-// CHECK: # List of original iterators
-// CHECK: i0
-// CHECK: # Statement body expression
-// CHECK: S0(A1, 1, A1, 1, i0)
-// CHECK: </body>
-//
-// CHECK: # =============================================== Extensions
-// CHECK: <arrays>
-// CHECK: # Number of arrays
-// CHECK: 1
-// CHECK: # Mapping array-identifiers/array-names
-// CHECK: 1 A1
-// CHECK: </arrays>
-//
-// CHECK: <scatnames>
-// CHECK: c0 i0 c2
-// CHECK: </scatnames>
-//
-// CHECK: </OpenScop>
+
+// CHECK-LABEL: func @S0
+// CHECK: attributes {scop.stmt}
+// CHECK: %[[VAL0:.*]] = affine.load
+// CHECK: affine.store %[[VAL0]]
+
+// OSL-LABEL: <OpenScop>
+
+// OSL-LABEL: CONTEXT
+// OSL: 0 2 0 0 0 0
+
+// OSL: # Number of statements
+// OSL-NEXT: 1
+
+// OSL: # Number of relations describing the statement:
+// OSL-NEXT: 4
+
+// OSL-LABEL: DOMAIN
+// OSL: 2 3 1 0 0 0
+// OSL: # e/i| i1 |  1  
+// OSL:    1    1    0    ## i1 >= 0
+// OSL:    1   -1   31    ## -i1+31 >= 0
+
+// OSL-LABEL: SCATTERING
+// OSL: 3 6 3 1 0 0
+// OSL: # e/i| c1   c2   c3 | i1 |  1  
+// OSL:    0   -1    0    0    0    0    ## c1 == 0
+// OSL:    0    0   -1    0    1    0    ## c2 == i1
+// OSL:    0    0    0   -1    0    0    ## c3 == 0
+
+// OSL-LABEL: READ
+// OSL: 2 5 2 1 0 0
+// OSL: # e/i| Arr  [1]| i1 |  1  
+// OSL:    0    0   -1    1    0    ## [1] == i1
+// OSL:    0   -1    0    0    1    ## Arr == A1
+
+// OSL-LABEL: WRITE
+// OSL: 2 5 2 1 0 0
+// OSL: # e/i| Arr  [1]| i1 |  1  
+// OSL:    0    0   -1    1    0    ## [1] == i1
+// OSL:    0   -1    0    0    1    ## Arr == A1
+
+// OSL-LABEL: <body>
+// OSL: i1
+// OSL: S0(i1,A1)
+
+// OSL-LABEL: <scatnames>
+// OSL: c1 c2 c3
+
+// OSL-LABEL: <arrays>
+// OSL: 1 A1

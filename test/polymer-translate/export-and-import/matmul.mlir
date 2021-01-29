@@ -1,4 +1,4 @@
-// RUN: polymer-translate %s -export-scop | polymer-translate -import-scop | FileCheck %s
+// RUN: polymer-opt %s -reg2mem -extract-scop-stmt | polymer-translate -export-scop | polymer-translate -import-scop | FileCheck %s
 
 func @matmul() {
   %A = alloc() : memref<64x64xf32>
@@ -21,14 +21,14 @@ func @matmul() {
   return
 }
 
-// CHECK:      func @main(%[[ARG0:.*]]: memref<?x?xf32>, %[[ARG1:.*]]: memref<?x?xf32>, %[[ARG2:.*]]: memref<?x?xf32>) {
+// CHECK:      func @matmul(%[[ARG0:.*]]: memref<?x?xf32>, %[[ARG1:.*]]: memref<?x?xf32>, %[[ARG2:.*]]: memref<?x?xf32>) {
 // CHECK-NEXT:   affine.for %[[ARG3:.*]] = 0 to 64 {
 // CHECK-NEXT:     affine.for %[[ARG4:.*]] = 0 to 64 {
 // CHECK-NEXT:       affine.for %[[ARG5:.*]] = 0 to 64 {
-// CHECK-NEXT:         call @S0(%[[ARG0]], %[[ARG1]], %[[ARG2]], %[[ARG0]], %[[ARG3]], %[[ARG4]], %[[ARG5]]) : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index) -> ()
+// CHECK-NEXT:         call @S0(%[[ARG3]], %[[ARG4]], %[[ARG0]], %[[ARG5]], %[[ARG1]], %[[ARG2]]) : (index, index, memref<?x?xf32>, index, memref<?x?xf32>, memref<?x?xf32>) -> ()
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
 // CHECK-NEXT:   }
 // CHECK-NEXT:   return
 // CHECK-NEXT: }
-// CHECK:      func private @S0(memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index)
+// CHECK:      func private @S0(index, index, memref<?x?xf32>, index, memref<?x?xf32>, memref<?x?xf32>)

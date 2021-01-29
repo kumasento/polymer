@@ -41,16 +41,6 @@ set(LLVM_LIT_ARGS "${LIT_ARGS_DEFAULT}" CACHE STRING "Default options for lit")
 # ------------------------------------------------- Dependencies
 # Find whether the GMP package exists.
 find_package(GMP REQUIRED)
-# TODO: there could be a better way to do this?
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lgmp" )
-
-# Configure and build OpenScop to ${CMAKE_BUILD_DIR}/openscop 
-# include("${CMAKE_SOURCE_DIR}/cmake/OpenScop.cmake")
-# include_directories("${OSL_INCLUDE_DIR}")
-
-# Configure and build CLooG/ISL to ${CMAKE_BUILD_DIR}/cloog
-# include("${CMAKE_SOURCE_DIR}/cmake/CLooG.cmake")
-# include_directories("${CLOOG_INCLUDE_DIR}")
 
 # Configure and build PLUTO to ${CMAKE_BUILD_DIR}/pluto
 include("${CMAKE_SOURCE_DIR}/cmake/PLUTO.cmake")
@@ -58,7 +48,7 @@ include_directories("${PLUTO_INCLUDE_DIR}")
 
 # ------------------------------------------------- This project
 set(POLYMER_MAIN_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include" ) # --src-root
-set(POLYMER_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/include" ) # --includedir
+set(POLYMER_MAIN_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/include" ) # --includedir
 
 set(POLYMER_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 set(POLYMER_BINARY_DIR "${CMAKE_BINARY_DIR}/bin")

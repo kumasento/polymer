@@ -22,4 +22,5 @@ target_link_libraries(polymer-opt
   MLIRIR
 
   PolymerTransforms
+  PolymerSupportTestPasses
   )

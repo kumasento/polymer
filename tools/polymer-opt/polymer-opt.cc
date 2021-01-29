@@ -26,6 +26,11 @@ using namespace llvm;
 using namespace mlir;
 using namespace polymer;
 
+namespace polymer {
+void registerTestScatTree();
+void registerTestOslScopBuilder();
+} // namespace polymer
+
 static cl::opt<std::string>
     inputFilename(cl::Positional, cl::desc("<input file>"), cl::init("-"));
 
@@ -77,6 +82,10 @@ int main(int argc, char *argv[]) {
   polymer::registerPlutoTransformPass();
   polymer::registerRegToMemPass();
   polymer::registerExtractScopStmtPass();
+
+  // Register test passes.
+  polymer::registerTestScatTree();
+  polymer::registerTestOslScopBuilder();
 
   // Register any pass manager command line options.
   registerMLIRContextCLOptions();
