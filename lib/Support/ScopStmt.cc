@@ -106,6 +106,7 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
 
   // The domain constraints can then be collected from the enclosing ops.
   getIndexSet(enclosingOps, &domain);
+  domain.removeRedundantConstraints();
 
   LLVM_DEBUG(llvm::dbgs() << "Initialized domain:\n");
   LLVM_DEBUG(domain.dump());

@@ -27,7 +27,7 @@ class Value;
 namespace polymer {
 
 class OslScop;
-class OslSymbolTable;
+class OslScopSymbolTable;
 
 /// Create a single OpenScop (OslScop) from the given function. If nullptr is
 /// returned, it means the given function is not of Scop.
@@ -36,8 +36,14 @@ std::unique_ptr<OslScop> createOpenScopFromFuncOp(mlir::FuncOp f);
 /// Create a function (FuncOp) from the given OpenScop object in the given
 /// module (ModuleOp).
 mlir::Operation *createFuncOpFromOpenScop(std::unique_ptr<OslScop> scop,
+                                          OslScopSymbolTable &st,
                                           mlir::ModuleOp module,
-                                          OslSymbolTable &symTable,
+                                          mlir::MLIRContext *context);
+/// If we get OpenScop from a file, that is, no OslScopSymbolTable is available,
+/// we use the following API which creates a dummy one (that could be updated
+/// during the codegen).
+mlir::Operation *createFuncOpFromOpenScop(std::unique_ptr<OslScop> scop,
+                                          mlir::ModuleOp module,
                                           mlir::MLIRContext *context);
 
 mlir::OwningModuleRef translateOpenScopToModule(std::unique_ptr<OslScop> scop,

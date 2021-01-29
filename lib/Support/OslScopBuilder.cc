@@ -333,6 +333,7 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
   scop->addParameterNames(symbolTable);
   scop->addScatnames(scatTreeRoot);
   scop->addArrays(symbolTable);
+  scop->addFunctionSignature(f, symbolTable);
 
   // Put the content of scopStmtMap into scop. The statements will be inserted
   // in the same order as they are iterated.

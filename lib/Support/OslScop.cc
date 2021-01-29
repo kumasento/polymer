@@ -58,6 +58,10 @@ llvm::StringRef OslScopSymbolTable::lookup(mlir::Value value,
   return llvm::StringRef("");
 }
 
+mlir::Value OslScopSymbolTable::lookup(llvm::StringRef symbol) const {
+  return symbolTable.lookup(symbol);
+}
+
 int64_t OslScopSymbolTable::lookupId(mlir::Value value) const {
   llvm::StringRef symbol = lookup(value);
   assert(!symbol.empty());
@@ -91,6 +95,14 @@ llvm::StringRef OslScopSymbolTable::lookupOrCreate(mlir::Value value) {
   // We return the ref to the key stored in the StringMap, instead of the
   // temporary string object created here.
   return result.first->first();
+}
+
+void OslScopSymbolTable::insert(llvm::StringRef symbol, mlir::Value value) {
+  symbolTable.insert(std::make_pair(symbol, value));
+}
+
+void OslScopSymbolTable::erase(llvm::StringRef symbol) {
+  symbolTable.erase(symbol);
 }
 
 llvm::StringRef
@@ -278,6 +290,41 @@ void OslScop::print(FILE *fp) const { osl_scop_print(fp, scop.get()); }
 bool OslScop::validate() const {
   // TODO: do we need to check the scoplib compatibility?
   return osl_scop_integrity_check(scop.get());
+}
+
+unsigned OslScop::getNumDimsOfArray(unsigned id) const {
+  osl_statement *stmt = scop->statement;
+  unsigned numDims = 0;
+
+  bool isSet = false;
+  while (stmt != nullptr) {
+    osl_relation_list *rel_list = stmt->access;
+    while (rel_list != nullptr) {
+      osl_relation *rel = rel_list->elt;
+
+      for (unsigned i = 0; i < rel->nb_rows; i++) {
+        if (osl_int_mone(osl_util_get_precision(), rel->m[i][1]) &&
+            osl_int_get_si(osl_util_get_precision(),
+                           rel->m[i][rel->nb_columns - 1]) == id) {
+          if (!isSet) {
+            numDims = rel->nb_output_dims - 1;
+            isSet = true;
+          } else
+            assert((numDims == rel->nb_output_dims - 1) &&
+                   "Number of dims should be the same across all access "
+                   "relations");
+
+          break;
+        }
+      }
+
+      rel_list = rel_list->next;
+    }
+
+    stmt = stmt->next;
+  }
+
+  return numDims;
 }
 
 /// --------------------------- Statements -------------------------------------
@@ -673,6 +720,14 @@ osl_generic *OslScop::addParameterNames(const OslScopSymbolTable &st) {
   return addParametersGeneric("strings", body, scop);
 }
 
+osl_strings *OslScop::getParameterNames() const {
+  void *data = osl_generic_lookup(scop->parameters, "strings");
+  if (data == nullptr)
+    return nullptr;
+
+  return reinterpret_cast<osl_strings *>(data);
+}
+
 osl_generic *OslScop::addScatnames(const ScatTreeNode &root) {
   std::string body;
   llvm::raw_string_ostream ss(body);
@@ -684,6 +739,14 @@ osl_generic *OslScop::addScatnames(const ScatTreeNode &root) {
     ss << "c" << (i + 1) << " ";
 
   return addExtensionGeneric("scatnames", body, scop);
+}
+
+osl_strings *OslScop::getScatnames() const {
+  void *data = osl_generic_lookup(scop->extension, "scatnames");
+  if (data == nullptr)
+    return nullptr;
+
+  return reinterpret_cast<osl_strings *>(data);
 }
 
 osl_generic *OslScop::addArrays(const OslScopSymbolTable &st) {
@@ -700,6 +763,14 @@ osl_generic *OslScop::addArrays(const OslScopSymbolTable &st) {
 
   std::string fullBody = std::to_string(numArraySymbols) + " " + body;
   return addExtensionGeneric("arrays", fullBody, scop);
+}
+
+osl_arrays *OslScop::getArrays() const {
+  void *data = osl_generic_lookup(scop->extension, "arrays");
+  if (data == nullptr)
+    return nullptr;
+
+  return reinterpret_cast<osl_arrays *>(data);
 }
 
 osl_generic *OslScop::addBody(osl_statement *oslStmt, const ScopStmt &scopStmt,
@@ -719,33 +790,40 @@ osl_generic *OslScop::addBody(osl_statement *oslStmt, const ScopStmt &scopStmt,
   ss << "\n";
 
   mlir::FuncOp callee = scopStmt.getCallee();
+  mlir::CallOp caller = scopStmt.getCaller();
   ss << callee.getName() << "(";
-  interleaveComma(ivs, ss, [&](Value iv) { ss << st.lookup(iv); });
+  interleave(
+      caller.getOperands(), ss, [&](Value arg) { ss << st.lookup(arg); }, ",");
+  ss << ")";
+  return addStatementGeneric(getStatementId(oslStmt), "body", body, scop);
+}
+
+osl_generic *OslScop::addFunctionSignature(mlir::FuncOp f,
+                                           const OslScopSymbolTable &st) {
+  std::string body;
+  llvm::raw_string_ostream ss(body);
+
+  ss << f.getName() << "(";
+  interleave(
+      f.getArguments(), ss, [&](Value arg) { ss << st.lookup(arg); }, ",");
   ss << ")";
 
-  // SmallVector<std::string, 8> ivs;
-  // SetVector<unsigned> visited;
-  // for (unsigned i = 0; i < caller.getNumOperands(); i++) {
-  //   mlir::Value operand = caller.getOperand(i);
-  //   if (ivToId.find(operand) != ivToId.end()) {
-  //     ivs.push_back(std::string(formatv("i{0}", ivToId[operand])));
-  //     visited.insert(ivToId[operand]);
-  //   }
-  // }
+  return addExtensionGeneric("strings", body, scop);
+}
 
-  // for (unsigned i = 0; i < numIVs; i++)
-  //   if (!visited.contains(i)) {
-  //     visited.insert(i);
-  //     ivs.push_back(std::string(formatv("i{0}", i)));
-  //   }
+llvm::StringRef OslScop::getFunctionSignature() const {
+  void *generic = osl_generic_lookup(scop->extension, "strings");
+  if (generic == nullptr) {
+    llvm::errs() << "Cannot find generic of <strings> in scop->extension.";
+    return "";
+  }
 
-  // for (unsigned i = 0; i < ivs.size(); i++) {
-  //   ss << ivs[i];
-  //   if (i != ivs.size() - 1)
-  //     ss << ", ";
-  // }
+  osl_strings *strings = reinterpret_cast<osl_strings *>(generic);
+  assert(strings != nullptr);
 
-  // ss << ")";
+  // There should be a single line in it.
+  if (osl_strings_size(strings) != 1)
+    return "";
 
-  return addStatementGeneric(getStatementId(oslStmt), "body", body, scop);
+  return strings->string[0];
 }

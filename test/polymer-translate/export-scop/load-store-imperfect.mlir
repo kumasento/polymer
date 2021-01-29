@@ -62,7 +62,7 @@ func @load_store_imperfect(%A : memref<?xf32>, %B : memref<?x?xf32>) -> () {
 // OSL:    0   -1    0    0    0    0    1    ## Arr == A1
 
 // OSL-LABEL: # Statement body expression
-// OSL: S0(i1)
+// OSL: S0(A1,A2,P1,i1)
 
 // OSL-LABEL: Statement 2
 // OSL-LABEL: DOMAIN
@@ -89,4 +89,4 @@ func @load_store_imperfect(%A : memref<?xf32>, %B : memref<?x?xf32>) -> () {
 // OSL:    0   -1    0    0    0    0    0    1    ## Arr == A1
 
 // OSL-LABEL: # Statement body expression
-// OSL: S1(i1, i2)
+// OSL: S1(A3,i1,P2,i2,A1)

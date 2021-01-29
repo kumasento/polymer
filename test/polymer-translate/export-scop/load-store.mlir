@@ -65,7 +65,7 @@ func @load_store() {
 
 // OSL-LABEL: <body>
 // OSL: i1
-// OSL: S0(i1)
+// OSL: S0(i1,A1)
 
 // OSL-LABEL: <scatnames>
 // OSL: c1 c2 c3

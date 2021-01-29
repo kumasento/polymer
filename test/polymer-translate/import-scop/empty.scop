@@ -33,10 +33,14 @@ CONTEXT
 # Statement body is not provided
 0
 
+<strings>
+empty()
+</strings>
+
 </OpenScop>
 
 // CHECK: module {
-// CHECK:   func @main() {
+// CHECK:   func @empty() {
 // CHECK:     return
 // CHECK:   }
 // CHECK: }

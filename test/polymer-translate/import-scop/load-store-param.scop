@@ -64,7 +64,7 @@ READ
 # List of original iterators
 i0
 # Statement body expression
-S0(A1, 1, A1, 1, i0)
+S0(A1,i0)
 </body>
 
 # =============================================== Extensions
@@ -76,16 +76,20 @@ S0(A1, 1, A1, 1, i0)
 </arrays>
 
 <scatnames>
-c0 i0 c2
+c0 c1 c2
 </scatnames>
+
+<strings>
+load_store_param(P1,A1)
+</strings>
 
 </OpenScop>
 
-// CHECK:      func @main(%[[ARG0:.*]]: index, %[[ARG1:.*]]: memref<?xf32>) {
+// CHECK:      func @load_store_param(%[[ARG0:.*]]: index, %[[ARG1:.*]]: memref<?xf32>) {
 // CHECK-NEXT:   affine.for %[[ARG2:.*]] = 0 to %[[ARG0]] {
-// CHECK-NEXT:     call @S0(%[[ARG1]], %[[ARG1]], %[[ARG2]]) : (memref<?xf32>, memref<?xf32>, index) -> ()
+// CHECK-NEXT:     call @S0(%[[ARG1]], %[[ARG2]]) : (memref<?xf32>, index) -> ()
 // CHECK-NEXT:   }
 // CHECK-NEXT:   return
 // CHECK-NEXT: }
 //
-// CHECK: func private @S0(memref<?xf32>, memref<?xf32>, index)
+// CHECK: func private @S0(memref<?xf32>, index)

@@ -43,10 +43,13 @@ public:
   /// Get a const reference to the symbol table.
   const Container &getSymbolTable() const;
 
-  /// Find symbol from the symbol table for the given Value.  Return an empty
+  /// Find symbol from the symbol table for the given Value. Return an empty
   /// symbol if not found.
   llvm::StringRef lookup(mlir::Value value) const;
   llvm::StringRef lookup(mlir::Value value, unsigned *numSymbolsOfType) const;
+
+  /// Find the value that the given symbol is associated with.
+  mlir::Value lookup(llvm::StringRef) const;
 
   /// Return the found symbol without its prefix.
   int64_t lookupId(mlir::Value) const;
@@ -54,6 +57,12 @@ public:
   /// Find the symbol for the given Value. If not exists, create a new one based
   /// on the hardcoded rule.
   llvm::StringRef lookupOrCreate(mlir::Value value);
+
+  /// Insert a symbol, value pair into the container.
+  void insert(llvm::StringRef, mlir::Value);
+
+  /// Erase a symbol.
+  void erase(llvm::StringRef);
 
   /// Get the symbol prefix ('A', 'i', 'P', etc.) based on the symbol type.
   static llvm::StringRef getPrefix(SymbolType type);
@@ -166,6 +175,10 @@ public:
   /// osl_scop_integrity_check function from OpenScop.
   bool validate() const;
 
+  /// Iterate all access relations to find the number of dims of the given
+  /// array.
+  unsigned getNumDimsOfArray(unsigned id) const;
+
   /// ------------------------- Statements -------------------------------------
 
   /// Simply create a new statement in the linked list scop->statement.
@@ -242,16 +255,33 @@ public:
   /// the symbol table.
   osl_generic *addParameterNames(const OslScopSymbolTable &);
 
+  /// Get the list of parameter names from scop->parameters.
+  osl_strings *getParameterNames() const;
+
   /// Create strings based on the depth of the scat tree and add them
   /// to the <scatnames> extension.
   osl_generic *addScatnames(const ScatTreeNode &);
 
+  /// Get the <scatnames> content from scop->extension.
+  osl_strings *getScatnames() const;
+
   /// Create the <arrays> extension from the symbol table.
   osl_generic *addArrays(const OslScopSymbolTable &);
+
+  /// Get the <arrays> content from scop->extension.
+  osl_arrays *getArrays() const;
 
   /// Add the <body> extension content from the given ScopStmt object.
   osl_generic *addBody(osl_statement *, const ScopStmt &,
                        const OslScopSymbolTable &);
+
+  /// Add the function signature to a <strings> tag in the scop->extension
+  /// section.
+  osl_generic *addFunctionSignature(mlir::FuncOp, const OslScopSymbolTable &);
+
+  /// Search for the extensions and find if there is a <strings> tag that has a
+  /// single line in it.
+  llvm::StringRef getFunctionSignature() const;
 };
 
 } // namespace polymer
