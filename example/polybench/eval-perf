@@ -136,7 +136,7 @@ function run_pluto()
 
   # Run the Pluto-compiled executable
   if [ "${SKIP_EXECUTE}" = "false" ]; then
-    eval $__RESULT_PLUTO_RUN_TIME="$("${PLUTO_EXE_FILE}")"
+    eval $__RESULT_PLUTO_RUN_TIME="$(taskset -c 1-1 "${PLUTO_EXE_FILE}")"
   fi
   eval $__RESULT_PLUTO_EXE_FILE="${PLUTO_EXE_FILE}"
 
@@ -177,7 +177,7 @@ function run_polymer()
   fi
 
   if [ "${OPT_CONFIG}" = "2" ]; then
-    opt -S "${POLYMER_LLVM_IR_FILE}" -O3 ${CLANG_OPTIONS} -o "${PLUTO_LLVM_IR_FILE}" 
+    opt -S "${POLYMER_LLVM_IR_FILE}" -O3 -o "${POLYMER_LLVM_IR_FILE}" 
   fi
 
   clang "${POLYMER_LLVM_IR_FILE}" "${POLYBENCH_SRC_FILE}" -O3 ${CLANG_OPTIONS} -o "${POLYMER_EXE_FILE}" -I "${UTILITIES_DIR}" -lm \
@@ -185,7 +185,7 @@ function run_polymer()
 
   # Run the Polymer-compiled executable
   if [ "${SKIP_EXECUTE}" = "false" ]; then
-    eval $__RESULT_POLYMER_RUN_TIME="$("${POLYMER_EXE_FILE}")"
+    eval $__RESULT_POLYMER_RUN_TIME="$(taskset -c 1-1 "${POLYMER_EXE_FILE}")"
   fi
   eval $__RESULT_POLYMER_EXE_FILE="${POLYMER_EXE_FILE}"
 
