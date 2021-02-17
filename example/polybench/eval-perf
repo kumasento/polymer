@@ -179,7 +179,7 @@ function run_polymer()
   fi
 
   if [ "${OPT_CONFIG}" = "2" ]; then
-    opt -S "${POLYMER_LLVM_IR_FILE}" -march=native -O3 -o "${POLYMER_LLVM_IR_FILE}" 
+    opt -S "${POLYMER_LLVM_IR_FILE}" -O3 -o "${POLYMER_LLVM_IR_FILE}" 
   fi
 
   clang "${POLYMER_LLVM_IR_FILE}" "${POLYBENCH_SRC_FILE}" -O3 ${CLANG_OPTIONS} -o "${POLYMER_EXE_FILE}" -lm \
