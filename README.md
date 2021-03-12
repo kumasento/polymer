@@ -11,6 +11,20 @@ Supported polyhedral schedulers:
 
 ## Setup
 
+### Setup with Docker
+
+To build the docker container:
+```
+make build-docker
+```
+
+To enter the docker container:
+```
+make shell
+```
+
+### Manual Setup
+
 Install prerequisites for [MLIR/LLVM](https://mlir.llvm.org/getting_started/) and [Pluto](https://github.com/kumasento/pluto/blob/master/README.md).
 
 Specifically, you need:
@@ -26,7 +40,7 @@ Specifically, you need:
 Here is a one-liner on Ubuntu 20.04:
 
 ```shell
-sudo apt-get install -y build-essential libtool autoconf pkg-config flex bison libgmp-dev clang-9 libclang-9-dev texinfo
+sudo apt-get install -y build-essential libtool autoconf pkg-config flex bison libgmp-dev clang-9 libclang-9-dev texinfo ninja-build cmake
 ```
 
 On Ubuntu you may need to specify the default versions of these tools:
