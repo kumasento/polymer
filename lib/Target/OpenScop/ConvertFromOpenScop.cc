@@ -448,8 +448,6 @@ private:
   void initializeFuncOpInterface();
   void initializeSymbol(mlir::Value val);
 
-  void fulfillSymbolDependence(llvm::StringRef symbol);
-
   LogicalResult processStmt(clast_root *rootStmt);
   LogicalResult processStmt(clast_for *forStmt);
   LogicalResult processStmt(clast_guard *guardStmt);
@@ -473,7 +471,6 @@ private:
                                   llvm::SmallVectorImpl<std::string> &args);
 
   bool isMemrefArg(llvm::StringRef argName);
-  bool isResultArg(llvm::StringRef argName);
 
   /// Functions are always inserted before the module terminator.
   Block::iterator getFuncInsertPt() {
@@ -556,10 +553,6 @@ bool Importer::isMemrefArg(llvm::StringRef argName) {
   return argName.size() >= 2 && argName[0] == 'A';
 }
 
-bool Importer::isResultArg(llvm::StringRef argName) {
-  return argName.size() >= 2 && argName[0] == 'S';
-}
-
 LogicalResult Importer::processStmtList(clast_stmt *s) {
   for (; s; s = s->next) {
     if (CLAST_STMT_IS_A(s, stmt_root)) {
@@ -600,7 +593,7 @@ void Importer::initializeFuncOpInterface() {
   // TODO: make sure it is safe.
   std::string sourceFuncName = getSourceFuncName();
   if (!sourceFuncName.empty()) {
-    funcName = std::string(formatv("{0}_new", sourceFuncName));
+    funcName = std::string(formatv("{0}_opt", sourceFuncName));
   }
   // Create the function interface.
   func =
@@ -733,27 +726,6 @@ void Importer::initializeSymbol(mlir::Value val) {
   assert(newOp->getNumResults() == 1 && "Should only have one result.");
 
   symbolTable[symbol] = newOp->getResult(0);
-}
-
-/**
- * symbol now exists in the symbolTable, and we can check whether we can
- * initialize other symbols that depends on them.
- */
-void Importer::fulfillSymbolDependence(llvm::StringRef symbol) {
-  assert(symbolTable[symbol] != nullptr &&
-         "Symbol to be fulfilled not in the symbol table.");
-
-  for (mlir::Value val : symbolToDeps[symbol]) {
-    assert(valueToDepSymbols[val].contains(symbol));
-
-    valueToDepSymbols[val].remove(symbol);
-    if (valueToDepSymbols[val].empty()) {
-
-      initializeSymbol(val);
-    }
-  }
-
-  symbolToDeps.erase(symbol);
 }
 
 void Importer::initializeSymbolTable() {
