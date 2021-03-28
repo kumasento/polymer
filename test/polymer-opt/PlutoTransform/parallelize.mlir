@@ -19,3 +19,18 @@ func @single_loop(%A: memref<?xf32>, %N: index) {
 // CHECK-NEXT:   }
 // CHECK-NEXT:   return
 // CHECK-NEXT: }
+
+// -----
+
+// Should trigger wavefront parallelism in Pluto.
+// func @not_parallelizable_bounds(%A: memref<?x?xf32>, %N: index) {
+//   affine.for %i = 0 to %N {
+//     affine.for %j = 0 to %N {
+//       %0 = affine.load %A[%i - 1, %j] : memref<?x?xf32>
+//       %1 = affine.load %A[%i, %j - 1] : memref<?x?xf32>
+//       %2 = addf %0, %1 : f32
+//       affine.store %2, %A[%i, %j] : memref<?x?xf32>
+//     }
+//   }
+//   return
+// }

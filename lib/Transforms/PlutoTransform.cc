@@ -234,10 +234,9 @@ static bool isBoundParallelizable(mlir::AffineForOp forOp) {
 static void plutoParallelize(mlir::FuncOp f, OpBuilder b) {
   mlir::AffineForOp forOp = nullptr;
   while ((forOp = findParallelizableLoop(f)) != nullptr) {
-    if (!isBoundParallelizable(forOp)) {
+    if (!isBoundParallelizable(forOp))
       llvm_unreachable(
           "Loops marked as parallelizable should have parallelizable bounds.");
-    }
     plutoParallelize(forOp, b);
   }
 }
