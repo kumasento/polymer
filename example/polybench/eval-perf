@@ -171,18 +171,22 @@ function run_polymer()
   local SRC_FILE="$1"
   local __RESULT_POLYMER_EXE_FILE="$2"
   local __RESULT_POLYMER_RUN_TIME="$3"
-  local POLYMER_SRC_FILE="${SRC_FILE%.mlir}.polymer.mlir"
-  local POLYMER_LLVM_IR_FILE="${SRC_FILE%.mlir}.polymer.ll"
-  local POLYMER_LLVM_IR_TMP_FILE="${SRC_FILE%.mlir}.polymer.tmp.ll"
-  local POLYMER_LLVM_IR_OPT_FILE="${SRC_FILE%.mlir}.polymer.opt.ll"
-  local POLYMER_CLAST_FILE="${SRC_FILE%.mlir}.polymer.cloog"
-  local POLYMER_EXE_FILE="${SRC_FILE%.mlir}.polymer.exe"
+  local POLYMER_ORIGIN_SRC_FILE="${SRC_FILE%.c}.mlir"
+  local POLYMER_SRC_FILE="${SRC_FILE%.c}.polymer.mlir"
+  local POLYMER_LLVM_IR_FILE="${SRC_FILE%.c}.polymer.ll"
+  local POLYMER_LLVM_IR_TMP_FILE="${SRC_FILE%.c}.polymer.tmp.ll"
+  local POLYMER_LLVM_IR_OPT_FILE="${SRC_FILE%.c}.polymer.opt.ll"
+  local POLYMER_CLAST_FILE="${SRC_FILE%.c}.polymer.cloog"
+  local POLYMER_EXE_FILE="${SRC_FILE%.c}.polymer.exe"
   local POLYBENCH_SRC_FILE="${UTILITIES_DIR}/polybench.c"
 
   local SRC_DIR="$(dirname "${SRC_FILE}")"
-
   cd "${SRC_DIR}"
   if [ "${SKIP_CODEGEN}" = "false" ]; then
+    # Generate original MLIR code from C.
+    mlir-clang "${SRC_FILE}" -I "${UTILITIES_DIR}" -I "${LLVM_DIR}/build/lib/clang/13.0.0/include/" \
+      -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET \
+      | tee "${POLYMER_ORIGIN_SRC_FILE}" &>/dev/null
     # Generate Polymer optimized MLIR code.
     polymer-opt \
       -reg2mem \
@@ -191,18 +195,18 @@ function run_polymer()
       -canonicalize \
       -pluto-opt="dump-clast-after-pluto=${POLYMER_CLAST_FILE}" \
       -canonicalize \
-      "${SRC_FILE}" 2>/dev/null > "${POLYMER_SRC_FILE}"
+      "${POLYMER_ORIGIN_SRC_FILE}" > "${POLYMER_SRC_FILE}"
     # Compile Polymer generated MLIR code.
-    mlir-opt -lower-affine -convert-scf-to-std -inline -cse -canonicalize -convert-std-to-llvm "${POLYMER_SRC_FILE}" |\
+    mlir-opt -lower-affine -convert-scf-to-std -canonicalize -convert-std-to-llvm "${POLYMER_SRC_FILE}" |\
       mlir-translate -mlir-to-llvmir > "${POLYMER_LLVM_IR_FILE}"
   fi
 
-  local PLUTO_LLVM_IR_FILE="$(find $(dirname "${POLYMER_LLVM_IR_FILE}") -name "*pluto*.ll" -print -quit)"
-  if [ -f "${PLUTO_LLVM_IR_FILE}" ]; then 
-    sed -n '3,4p' "${PLUTO_LLVM_IR_FILE}" > "${POLYMER_LLVM_IR_TMP_FILE}"
-    cat "${POLYMER_LLVM_IR_FILE}" >> "${POLYMER_LLVM_IR_TMP_FILE}"
-    cp "${POLYMER_LLVM_IR_TMP_FILE}" "${POLYMER_LLVM_IR_FILE}"
-  fi
+  # local PLUTO_LLVM_IR_FILE="$(find $(dirname "${POLYMER_LLVM_IR_FILE}") -name "*pluto*.ll" -print -quit)"
+  # if [ -f "${PLUTO_LLVM_IR_FILE}" ]; then 
+  #   sed -n '3,4p' "${PLUTO_LLVM_IR_FILE}" > "${POLYMER_LLVM_IR_TMP_FILE}"
+  #   cat "${POLYMER_LLVM_IR_FILE}" >> "${POLYMER_LLVM_IR_TMP_FILE}"
+  #   cp "${POLYMER_LLVM_IR_TMP_FILE}" "${POLYMER_LLVM_IR_FILE}"
+  # fi
 
 
   if [ "${OPT_CONFIG}" = "2" ]; then
@@ -228,7 +232,7 @@ if [ -f "${TEST_CASE}" ]; then
   echo "Execute file: ${pluto_exe_file}"
   echo "Pluto run time:   ${PLUTO_RUN_TIME}" 
 
-  run_polymer "${TEST_CASE%.c}.mlir" polymer_exe_file POLYMER_RUN_TIME
+  run_polymer "${TEST_CASE}" polymer_exe_file POLYMER_RUN_TIME
   echo "Execute file: ${polymer_exe_file}"
   echo "Polymer run time: ${POLYMER_RUN_TIME}" 
 elif [ -d "${TEST_CASE}" ]; then 
@@ -257,7 +261,7 @@ elif [ -d "${TEST_CASE}" ]; then
         echo "Pluto run time:   ${PLUTO_RUN_TIME}" 
         PLUTO_RESULT_STR="${PLUTO_RESULT_STR},${PLUTO_RUN_TIME}"
 
-        run_polymer "${TEST_FILE%.c}.mlir" POLYMER_EXE_FILE POLYMER_RUN_TIME 
+        run_polymer "${TEST_FILE}" POLYMER_EXE_FILE POLYMER_RUN_TIME 
         echo "Polymer run time: ${POLYMER_RUN_TIME}" 
         POLYMER_RESULT_STR="${POLYMER_RESULT_STR},${POLYMER_RUN_TIME}"
       done
