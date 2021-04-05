@@ -8,6 +8,7 @@
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -79,7 +80,7 @@ static Operation *apply(mlir::AffineMap affMap, ValueRange operands,
     b.setInsertionPointAfterValue(newOperands[0]);
   else
     b.setInsertionPointToStart(
-        &(*(call.getParentOfType<FuncOp>().body().begin())));
+        &(*(call->getParentOfType<FuncOp>().body().begin())));
 
   // TODO: properly handle these index casting cases.
   for (size_t i = 0; i < newOperands.size(); i++)
@@ -163,7 +164,7 @@ static void scopStmtSplit(ModuleOp m, OpBuilder &b, FuncOp f, mlir::CallOp call,
   b.setInsertionPointAfterValue(memSize);
   // Allocation of the scratchpad memory.
   Operation *scrAlloc =
-      b.create<mlir::AllocOp>(forOp.getLoc(), memType, memSize);
+      b.create<memref::AllocOp>(forOp.getLoc(), memType, memSize);
 
   // Pass it into the target function.
   Value scrInFunc = appendArgument(scrAlloc->getResult(0), f, call, b);
@@ -289,7 +290,7 @@ static int annotateSplittable(FuncOp f, OpBuilder &b, int startId) {
         if (defOp == nullptr || operand.isa<BlockArgument>())
           continue;
         // Filter out operations out of the current region.
-        if (defOp->getParentRegion() != storeOp.getParentRegion())
+        if (defOp->getParentRegion() != storeOp->getParentRegion())
           continue;
         // Filter out defining operations of specific types.
         if (isa<mlir::AffineReadOpInterface, mlir::ConstantOp>(defOp))

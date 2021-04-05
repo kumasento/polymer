@@ -14,6 +14,7 @@
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/AsmState.h"
@@ -55,11 +56,6 @@ static cl::opt<bool>
                  cl::desc("Run the verifier after each transformation pass"),
                  cl::init(true));
 
-static cl::opt<bool>
-    showDialects("show-dialects",
-                 cl::desc("Print the list of registered dialects"),
-                 cl::init(false));
-
 static cl::opt<bool> allowUnregisteredDialects(
     "allow-unregistered-dialect",
     cl::desc("Allow operation with no registered dialects"), cl::init(false));
@@ -71,6 +67,7 @@ int main(int argc, char *argv[]) {
 
   // Register MLIR stuff
   registry.insert<StandardOpsDialect>();
+  registry.insert<mlir::memref::MemRefDialect>();
   registry.insert<mlir::AffineDialect>();
   registry.insert<mlir::scf::SCFDialect>();
   registry.insert<mlir::LLVM::LLVMDialect>();
@@ -99,14 +96,6 @@ int main(int argc, char *argv[]) {
 
   // Parse pass names in main to ensure static initialization completed.
   cl::ParseCommandLineOptions(argc, argv, "circt modular optimizer driver\n");
-
-  if (showDialects) {
-    llvm::outs() << "Registered Dialects:\n";
-    for (const auto &nameAndRegistrationIt : registry) {
-      llvm::outs() << nameAndRegistrationIt.first << "\n";
-    }
-    return 0;
-  }
 
   // Set up the input file.
   std::string errorMessage;
