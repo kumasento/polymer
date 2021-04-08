@@ -47,6 +47,9 @@ struct PlutoOptPipelineOptions
   Option<bool> parallelize{
       *this, "parallelize",
       llvm::cl::desc("Enable parallelization from Pluto.")};
+  Option<bool> generateParallel{
+      *this, "gen-parallel", llvm::cl::desc("Generate parallel affine loops."),
+      llvm::cl::init(false)};
 };
 
 } // namespace
@@ -244,7 +247,7 @@ void polymer::registerPlutoTransformPass() {
       [](OpPassManager &pm, const PlutoOptPipelineOptions &pipelineOptions) {
         pm.addPass(std::make_unique<PlutoTransformPass>(pipelineOptions));
         pm.addPass(createCanonicalizerPass());
-        if (pipelineOptions.parallelize) {
+        if (pipelineOptions.generateParallel) {
           pm.addPass(std::make_unique<PlutoParallelizePass>());
           pm.addPass(createCanonicalizerPass());
         }
