@@ -1,4 +1,4 @@
-#!/bin/bash 
+#!/bin/bash
 # Evaluate the performance difference between Pluto and Polymer.
 
 PLUTO_OPTIONS="--noparallel --noprevector --nounrolljam --moredebug"
