@@ -1,6 +1,22 @@
 #!/bin/bash
 # Evaluate the performance difference between Pluto and Polymer.
 
+set -o errexit
+set -o pipefail
+set -o nounset
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd)"
+TMPDIR="/tmp/polymer"
+mkdir -p "${TMPDIR}"
+
+TIMESTAMP="$(date "+%Y%m%d-%H%M%S")"
+
+# Setup xtrace debug
+TRACELOG="${TMPDIR}/trace.eval-perf.${TIMESTAMP}.log"
+exec 100>"${TRACELOG}"
+BASH_XTRACEFD=100
+set -x
+
 PLUTO_OPTIONS="--noparallel --noprevector --nounrolljam --moredebug"
 CLANG_NO_VECTORIZE_OPTIONS="-fno-vectorize -fno-slp-vectorize -fno-tree-vectorize"
 CLANG_NO_UNROLL_OPTIONS="-fno-unroll-loops"
@@ -11,6 +27,7 @@ SKIP_CODEGEN="false"
 PLUTO_VARIANT=""
 DELETE_WORKDIR="false"
 SKIPPED_TESTS="adi"
+LLVM_DIR="" # To be set later.
 
 OPT_CONFIG="1" # 1 stands for single O3, 2 for double O3
 
@@ -82,8 +99,6 @@ if [ "${PLUTO_VARIANT}" = "i64" ]; then
 fi 
 
 TEST_CASE="$(cd "$(dirname "${TARGET}")"; pwd)/$(basename "${TARGET}")"
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd)"
-TMPDIR="${DIR}/tmp"
 UTILITIES_DIR="${DIR}/utilities"
 PLUTO_DIR="${DIR}/../../pluto"
 POLYMER_DIR="${DIR}/../../"
@@ -111,17 +126,20 @@ function run_pluto()
 {
   local SRC_FILE="$1"
   local PLUTO_SUFFIX=".pluto"
-  if [ ! -z "${PLUTO_VARIANT}" ]; then
+  if [ -n "${PLUTO_VARIANT}" ]; then
     PLUTO_SUFFIX="${PLUTO_SUFFIX}.${PLUTO_VARIANT}"
   fi
 
   local __RESULT_PLUTO_EXE_FILE=$2
   local __RESULT_PLUTO_RUN_TIME=$3
-  local SRC_DIR="$(dirname "${SRC_FILE}")"
+  local SRC_DIR
+  local POLYCC_LOG
+  
+  POLYCC_LOG="polycc_$(date "+%Y%m%d-%H%M%S").log"
+  SRC_DIR="$(dirname "${SRC_FILE}")"
   local PLUTO_SRC_FILE="${SRC_FILE%.c}${PLUTO_SUFFIX}.c"
   local PLUTO_LLVM_IR_FILE="${PLUTO_SRC_FILE%.c}.ll"
   local PLUTO_EXE_FILE="${PLUTO_SRC_FILE%.c}.exe"
-  local POLYCC_LOG="polycc_$(date "+%Y%m%d-%H%M%S").log"
   local POLYBENCH_SRC_FILE="${UTILITIES_DIR}/polybench.c"
 
   cd "${SRC_DIR}" >/dev/null 2>&1
@@ -149,9 +167,9 @@ function run_pluto()
 
   # Run the Pluto-compiled executable
   if [ "${SKIP_EXECUTE}" = "false" ]; then
-    eval $__RESULT_PLUTO_RUN_TIME="$(taskset -c 1-1 numactl -i all "${PLUTO_EXE_FILE}")"
+    eval "$__RESULT_PLUTO_RUN_TIME"="$(taskset -c 1-1 numactl -i all "${PLUTO_EXE_FILE}")"
   fi
-  eval $__RESULT_PLUTO_EXE_FILE="\$PLUTO_EXE_FILE"
+  eval "$__RESULT_PLUTO_EXE_FILE"="${PLUTO_EXE_FILE}"
 
   cd - >/dev/null 2>&1
 }
@@ -174,13 +192,13 @@ function run_polymer()
   local POLYMER_ORIGIN_SRC_FILE="${SRC_FILE%.c}.mlir"
   local POLYMER_SRC_FILE="${SRC_FILE%.c}.polymer.mlir"
   local POLYMER_LLVM_IR_FILE="${SRC_FILE%.c}.polymer.ll"
-  local POLYMER_LLVM_IR_TMP_FILE="${SRC_FILE%.c}.polymer.tmp.ll"
   local POLYMER_LLVM_IR_OPT_FILE="${SRC_FILE%.c}.polymer.opt.ll"
   local POLYMER_CLAST_FILE="${SRC_FILE%.c}.polymer.cloog"
   local POLYMER_EXE_FILE="${SRC_FILE%.c}.polymer.exe"
   local POLYBENCH_SRC_FILE="${UTILITIES_DIR}/polybench.c"
 
-  local SRC_DIR="$(dirname "${SRC_FILE}")"
+  local SRC_DIR
+  SRC_DIR="$(dirname "${SRC_FILE}")"
   cd "${SRC_DIR}"
   if [ "${SKIP_CODEGEN}" = "false" ]; then
     # Generate original MLIR code from C.
@@ -195,19 +213,11 @@ function run_polymer()
       -canonicalize \
       -pluto-opt="dump-clast-after-pluto=${POLYMER_CLAST_FILE}" \
       -canonicalize \
-      "${POLYMER_ORIGIN_SRC_FILE}" > "${POLYMER_SRC_FILE}"
+      "${POLYMER_ORIGIN_SRC_FILE}" 2>/dev/null > "${POLYMER_SRC_FILE}"
     # Compile Polymer generated MLIR code.
     mlir-opt -lower-affine -convert-scf-to-std -canonicalize -convert-std-to-llvm "${POLYMER_SRC_FILE}" |\
       mlir-translate -mlir-to-llvmir > "${POLYMER_LLVM_IR_FILE}"
   fi
-
-  # local PLUTO_LLVM_IR_FILE="$(find $(dirname "${POLYMER_LLVM_IR_FILE}") -name "*pluto*.ll" -print -quit)"
-  # if [ -f "${PLUTO_LLVM_IR_FILE}" ]; then 
-  #   sed -n '3,4p' "${PLUTO_LLVM_IR_FILE}" > "${POLYMER_LLVM_IR_TMP_FILE}"
-  #   cat "${POLYMER_LLVM_IR_FILE}" >> "${POLYMER_LLVM_IR_TMP_FILE}"
-  #   cp "${POLYMER_LLVM_IR_TMP_FILE}" "${POLYMER_LLVM_IR_FILE}"
-  # fi
-
 
   if [ "${OPT_CONFIG}" = "2" ]; then
     opt -S "${POLYMER_LLVM_IR_FILE}" -O3 ${OPT_OPTIONS} -o "${POLYMER_LLVM_IR_OPT_FILE}" 
@@ -220,11 +230,78 @@ function run_polymer()
 
   # Run the Polymer-compiled executable
   if [ "${SKIP_EXECUTE}" = "false" ]; then
-    eval $__RESULT_POLYMER_RUN_TIME="$(taskset -c 1-1 numactl -i all "${POLYMER_EXE_FILE}")"
+    eval "$__RESULT_POLYMER_RUN_TIME"="$(taskset -c 1-1 numactl -i all "${POLYMER_EXE_FILE}")"
   fi
-  eval "$__RESULT_POLYMER_EXE_FILE=\$POLYMER_EXE_FILE"
+  eval "$__RESULT_POLYMER_EXE_FILE"="${POLYMER_EXE_FILE}"
 
   cd - >/dev/null 2>&1
+}
+
+# Evaluate a whole directory.
+function eval_dir() {
+  local TEST_CASE="$1"
+  local BASEDIR
+
+  BASEDIR="$(basename "${TEST_CASE}")"
+  local WORKDIR="${TMPDIR}/${BASEDIR}.${TIMESTAMP}"
+  local WORKLOG="${TMPDIR}/${BASEDIR}.${TIMESTAMP}.log"
+
+  echo ""
+  echo ">>> Evaluating directory ${TEST_CASE} ..."
+  echo ""
+  echo "    Start time:      ${TIMESTAMP}"
+  echo "    Working dir:     ${WORKDIR}"
+  echo "    Result file:     ${WORKLOG}"
+  echo "    Debug trace:     ${TRACELOG}"
+  echo ""
+  echo " Compiltaion options:"
+  echo ""
+  echo "    Clang options:   ${CLANG_OPTIONS}"
+  echo "    Opt options:     ${OPT_OPTIONS}"
+  echo "    Pluto options:   ${PLUTO_OPTIONS}"
+  echo ""
+
+  # Create a working directory in the tmp directory.
+  mkdir -p "${WORKDIR}"
+  cp -r "${TEST_CASE}"/* "${WORKDIR}"
+
+  # Check every subdirectory. 
+  for d in "${WORKDIR}"/*/; do
+    BASE_FILE_NAME="$(basename "${d}")"
+    TEST_FILE="${d}/${BASE_FILE_NAME}.c"
+
+    PLUTO_RESULT_STR="${BASE_FILE_NAME}"
+    POLYMER_RESULT_STR="${BASE_FILE_NAME}"
+
+    # Run evaluation.
+    if [[ ! "*${BASE_FILE_NAME}*" =~ ${SKIPPED_TESTS} ]]; then
+      echo ">>> Running ${BASE_FILE_NAME} ..."
+      printf "            Pluto       Polymer   \n"
+      printf "         ----------- ------------ \n"
+
+      for i in {1..5}; do
+        printf "Run #%2d  " "${i}"
+        run_pluto "${TEST_FILE}" PLUTO_EXE_FILE PLUTO_RUN_TIME 
+        printf "%10.7f  " "${PLUTO_RUN_TIME}"
+        PLUTO_RESULT_STR="${PLUTO_RESULT_STR},${PLUTO_RUN_TIME}"
+
+        run_polymer "${TEST_FILE}" POLYMER_EXE_FILE POLYMER_RUN_TIME 
+        printf "%10.7f" "${POLYMER_RUN_TIME}"
+        POLYMER_RESULT_STR="${POLYMER_RESULT_STR},${POLYMER_RUN_TIME}"
+        echo ""
+      done
+
+      echo "${PLUTO_RESULT_STR}" >> "${WORKLOG}"
+      echo "${POLYMER_RESULT_STR}" >> "${WORKLOG}"
+
+      echo ">>> Results updated to ${WORKLOG} "
+      echo ""
+    fi
+  done
+
+  if [ "${DELETE_WORKDIR}" = "true" ]; then
+    rm -rf "${WORKDIR}"
+  fi
 }
 
 if [ -f "${TEST_CASE}" ]; then
@@ -236,42 +313,5 @@ if [ -f "${TEST_CASE}" ]; then
   echo "Execute file: ${polymer_exe_file}"
   echo "Polymer run time: ${POLYMER_RUN_TIME}" 
 elif [ -d "${TEST_CASE}" ]; then 
-  # Create a working directory in the tmp directory.
-  BASEDIR="$(basename "${TEST_CASE}")"
-  WORKDIR="${TMPDIR}/${BASEDIR}.$(date "+%Y%m%d-%H%M%S")"
-  WORKLOG="${TMPDIR}/${BASEDIR}.$(date "+%Y%m%d-%H%M%S").log"
-
-  mkdir -p "${WORKDIR}"
-  cp -r "${TEST_CASE}"/* "${WORKDIR}"
-
-  # Check every subdirectory. 
-  for d in "${WORKDIR}"/*/; do
-
-    BASE_FILE_NAME="$(basename ${d})"
-    TEST_FILE="${d}/${BASE_FILE_NAME}.c"
-
-    PLUTO_RESULT_STR="${BASE_FILE_NAME}"
-    POLYMER_RESULT_STR="${BASE_FILE_NAME}"
-
-    if [[ ! "*${BASE_FILE_NAME}*" =~ "${SKIPPED_TESTS}" ]]; then
-      echo "Running ${BASE_FILE_NAME} ..."
-
-      for i in {1..5}; do
-        run_pluto "${TEST_FILE}" PLUTO_EXE_FILE PLUTO_RUN_TIME 
-        echo "Pluto run time:   ${PLUTO_RUN_TIME}" 
-        PLUTO_RESULT_STR="${PLUTO_RESULT_STR},${PLUTO_RUN_TIME}"
-
-        run_polymer "${TEST_FILE}" POLYMER_EXE_FILE POLYMER_RUN_TIME 
-        echo "Polymer run time: ${POLYMER_RUN_TIME}" 
-        POLYMER_RESULT_STR="${POLYMER_RESULT_STR},${POLYMER_RUN_TIME}"
-      done
-
-      echo "${PLUTO_RESULT_STR}" >> "${WORKLOG}"
-      echo "${POLYMER_RESULT_STR}" >> "${WORKLOG}"
-    fi
-  done
-
-  if [ "${DELETE_WORKDIR}" = "true" ]; then
-    rm -rf "${WORKDIR}"
-  fi
+  eval_dir "${TEST_CASE}"
 fi
