@@ -6,7 +6,7 @@ set -o pipefail
 set -o nounset
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd)"
-TMPDIR="/tmp/polymer"
+TMPDIR="${DIR}/tmp"
 mkdir -p "${TMPDIR}"
 
 TIMESTAMP="$(date "+%Y%m%d-%H%M%S")"
@@ -245,6 +245,7 @@ function eval_dir() {
   BASEDIR="$(basename "${TEST_CASE}")"
   local WORKDIR="${TMPDIR}/${BASEDIR}.${TIMESTAMP}"
   local WORKLOG="${TMPDIR}/${BASEDIR}.${TIMESTAMP}.log"
+  local DATAFILE="${HOME}/${BASEDIR}.${TIMESTAMP}.tar.gz"
 
   echo ""
   echo ">>> Evaluating directory ${TEST_CASE} ..."
@@ -259,6 +260,8 @@ function eval_dir() {
   echo "    Clang options:   ${CLANG_OPTIONS}"
   echo "    Opt options:     ${OPT_OPTIONS}"
   echo "    Pluto options:   ${PLUTO_OPTIONS}"
+  echo ""
+  echo " All the data will be stored at: ${DATAFILE}"
   echo ""
 
   # Create a working directory in the tmp directory.
@@ -295,6 +298,8 @@ function eval_dir() {
       echo "${POLYMER_RESULT_STR}" >> "${WORKLOG}"
 
       echo ">>> Results updated to ${WORKLOG} "
+      echo ">>> Packing things up ..."
+      tar cf "${DATAFILE}" "${WORKDIR}" "${WORKLOG}" "${TRACELOG}"
       echo ""
     fi
   done
@@ -302,6 +307,7 @@ function eval_dir() {
   if [ "${DELETE_WORKDIR}" = "true" ]; then
     rm -rf "${WORKDIR}"
   fi
+
 }
 
 if [ -f "${TEST_CASE}" ]; then
