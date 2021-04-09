@@ -101,8 +101,7 @@ void kernel_gramschmidt(int m, int n,
     {
       nrm = SCALAR_VAL(0.0);
       for (i = 0; i < _PB_M; i++) {
-        S[i] = A[i][k] * A[i][k];
-        nrm += S[i];
+        nrm += A[i][k] * A[i][k];
       }
       R[k][k] = SQRT_FUN(nrm);
       for (i = 0; i < _PB_M; i++)
@@ -110,10 +109,13 @@ void kernel_gramschmidt(int m, int n,
       for (j = k + 1; j < _PB_N; j++)
 	{
 	  R[k][j] = SCALAR_VAL(0.0);
-	  for (i = 0; i < _PB_M; i++)
+	  for (i = 0; i < _PB_M; i++) {
 	    R[k][j] += Q[i][k] * A[i][j];
-	  for (i = 0; i < _PB_M; i++)
-	    A[i][j] = A[i][j] - Q[i][k] * R[k][j];
+    }
+	  for (i = 0; i < _PB_M; i++) {
+      S[i] = Q[i][k] * R[k][j];
+	    A[i][j] = A[i][j] - S[i];
+    }
 	}
     }
 #pragma endscop

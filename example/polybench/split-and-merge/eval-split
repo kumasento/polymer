@@ -2,12 +2,27 @@
 # Evaluate the statement splitting.
 
 # Usage:
-#   eval-split <TARGET>
+#   eval-split <TARGET> <TYPES>
 # 
 # TARGET can be one of the subdirectories.
+# TYPES are what you are going to compare, e.g., "origin split", etc.
+
+set -o errexit
+set -o pipefail
+set -o nounset
 
 
 TARGET="$1"
+shift
+TYPES="$@"
+
+echo ""
+echo ">>> Evaluating statement splitting in pure C "
+echo ""
+echo " Args:"
+echo "    TARGET: ${TARGET}"
+echo "    TYPES:  ${TYPES}"
+echo ""
 
 # ----------------------------- GLOBALS ---------------------------------------
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd)"
@@ -32,9 +47,15 @@ export PATH="${PATH}:${PLUTO_DIR}"
 # Return the executable file.
 function compile() {
   local SRC_FILE="$1"
+  local DUMP_ARRAY="${2:-""}"
   local EXE_FILE="${SRC_FILE%.c}.exe"
+  local EXTRA_OPTIONS=""
 
-  clang -O3 ${CLANG_OPTIONS} ${POLYBENCH_OPTIONS} \
+  if [ "${DUMP_ARRAY}" = "DUMP_ARRAY" ]; then
+    EXTRA_OPTIONS+=" -DPOLYBENCH_DUMP_ARRAY"
+  fi
+
+  clang -O3 ${CLANG_OPTIONS} ${POLYBENCH_OPTIONS} ${EXTRA_OPTIONS} \
     "${SRC_FILE}" "${UTILITIES_DIR}/polybench.c" \
     -I "${UTILITIES_DIR}" -lm \
     -o "${EXE_FILE}"
@@ -48,8 +69,8 @@ function run() {
   local NUM_RUNS=$2
   local i=0
 
-  RESULT_STR="$(basename ${EXE_FILE%.exe})"
-  until [ $i -ge $NUM_RUNS ]; do
+  RESULT_STR="$(basename "${EXE_FILE%.exe}")"
+  until [ $i -ge "${NUM_RUNS}" ]; do
     RESULT_STR="${RESULT_STR},$(taskset -c 1-1 numactl -i all "${EXE_FILE}")"
     ((i++))
   done
@@ -62,21 +83,28 @@ function codegen() {
   local SRC_FILE="$1"
   local LOG_FILE="${SRC_FILE%.c}.pluto.log"
 
-  cd "$(dirname "${SRC_FILE}")"
+  cd "$(dirname "${SRC_FILE}")" || exit
 
-  ${PLUTO_DIR}/polycc "$(basename ${SRC_FILE})" --moredebug --noparallel --noprevector --nounrolljam &> "$(basename "${LOG_FILE}")"
+  "${PLUTO_DIR}/polycc" "$(basename "${SRC_FILE}")" --moredebug --noparallel --noprevector --nounrolljam &> "$(basename "${LOG_FILE}")"
 
-  cd - &>/dev/null
+  cd - &>/dev/null || exit
 }
 
-# EXE_TIME=$(run "$(compile "${TARGET}/${TARGET}.origin.c")")
-# echo ${EXE_TIME}
-for ty in origin split; do
+# Check whether the code generated actually have the same output.
+function sanity_check() {
+  exit
+}
+
+for ty in ${TYPES}; do
   codegen "${TARGET}/${TARGET}.${ty}.c"
 done
 
 # split.pluto.inner split.pluto.noscr 
-for ty in origin split origin.pluto split.pluto ; do
-  EXE_TIME=$(run "$(compile "${TARGET}/${TARGET}.${ty}.c")" 5)
-  echo ${EXE_TIME}
+for ty in ${TYPES} ; do
+  for with_pluto in "" ".pluto"; do 
+    SRC_FILE="${TARGET}/${TARGET}.${ty}${with_pluto}.c"
+    echo ">>> Running ${SRC_FILE} ..."
+    EXE_TIME=$(run "$(compile "${SRC_FILE}")" 5)
+    echo "${EXE_TIME}"
+  done
 done
