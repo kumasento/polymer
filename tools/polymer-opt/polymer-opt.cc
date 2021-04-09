@@ -14,6 +14,7 @@
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -67,6 +68,7 @@ int main(int argc, char *argv[]) {
 
   // Register MLIR stuff
   registry.insert<StandardOpsDialect>();
+  registry.insert<mlir::math::MathDialect>();
   registry.insert<mlir::memref::MemRefDialect>();
   registry.insert<mlir::AffineDialect>();
   registry.insert<mlir::scf::SCFDialect>();
@@ -95,7 +97,7 @@ int main(int argc, char *argv[]) {
   PassPipelineCLParser passPipeline("", "Compiler passes to run");
 
   // Parse pass names in main to ensure static initialization completed.
-  cl::ParseCommandLineOptions(argc, argv, "circt modular optimizer driver\n");
+  cl::ParseCommandLineOptions(argc, argv, "Polymer pass driver\n");
 
   // Set up the input file.
   std::string errorMessage;
