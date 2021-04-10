@@ -14,14 +14,14 @@ set -o nounset
 
 TARGET="$1"
 shift
-TYPES="$@"
+TYPES=("$@")
 
 echo ""
 echo ">>> Evaluating statement splitting in pure C "
 echo ""
 echo " Args:"
 echo "    TARGET: ${TARGET}"
-echo "    TYPES:  ${TYPES}"
+echo "    TYPES:  ${TYPES[*]}"
 echo ""
 
 # ----------------------------- GLOBALS ---------------------------------------
@@ -34,8 +34,9 @@ UTILITIES_DIR="${POLYBENCH_DIR}/utilities"
 PLUTO_DIR="${DIR}/../../../pluto"
 
 # Compilation options.
-CLANG_OPTIONS="-fno-vectorize -fno-slp-vectorize -fno-tree-vectorize -fno-unroll-loops"
-POLYBENCH_OPTIONS="-DPOLYBENCH_TIME -DEXTRALARGE_DATASET -DPOLYBENCH_NO_FLUSH_CACHE"
+CLANG_OPTIONS=(-fno-vectorize -fno-slp-vectorize -fno-tree-vectorize -fno-unroll-loops)
+POLYBENCH_OPTIONS=(-I"${UTILITIES_DIR}")
+LDFLAGS=("-lm")
 
 # ----------------------------- Setup ENV -------------------------------------
 export PATH="${PATH}:${PLUTO_DIR}"
@@ -47,15 +48,12 @@ export PATH="${PATH}:${PLUTO_DIR}"
 # Return the executable file.
 function compile() {
   local SRC_FILE="$1"
-  local DUMP_ARRAY="${2:-""}"
   local EXE_FILE="${SRC_FILE%.c}.exe"
-  local EXTRA_OPTIONS=""
+  local polybench_options=("${POLYBENCH_OPTIONS[@]}")
 
-  if [ "${DUMP_ARRAY}" = "DUMP_ARRAY" ]; then
-    EXTRA_OPTIONS+=" -DPOLYBENCH_DUMP_ARRAY"
-  fi
+  polybench_options+=("-DEXTRALARGE_DATASET" "-DPOLYBENCH_TIME")
 
-  clang -O3 ${CLANG_OPTIONS} ${POLYBENCH_OPTIONS} ${EXTRA_OPTIONS} \
+  clang -O3 "${CLANG_OPTIONS[@]}" "${polybench_options[@]}" \
     "${SRC_FILE}" "${UTILITIES_DIR}/polybench.c" \
     -I "${UTILITIES_DIR}" -lm \
     -o "${EXE_FILE}"
@@ -90,17 +88,46 @@ function codegen() {
   cd - &>/dev/null || exit
 }
 
-# Check whether the code generated actually have the same output.
-function sanity_check() {
-  exit
+function gen_output() {
+  local src_file="$1"
+  local exe_file="${src_file%.c}.sanity-check.exe"
+  local out_file="${src_file%.c}.out"
+  local polybench_options=("${POLYBENCH_OPTIONS[@]}")
+  polybench_options+=("-DSMALL_DATASET" "-DPOLYBENCH_DUMP_ARRAYS")
+
+  clang "${src_file}" "${UTILITIES_DIR}/polybench.c" "${polybench_options[@]}" "${LDFLAGS[@]}" -o "${exe_file}" 
+  "${exe_file}" 2>&1 | tee "${out_file}" &>/dev/null 
 }
 
-for ty in ${TYPES}; do
+
+for ty in "${TYPES[@]}"; do
   codegen "${TARGET}/${TARGET}.${ty}.c"
 done
 
+for ty in "${TYPES[@]}" ; do
+  for with_pluto in "" ".pluto"; do 
+    SRC_FILE="${TARGET}/${TARGET}.${ty}${with_pluto}.c"
+    echo ">>> Generating output for ${SRC_FILE} "
+    gen_output "${SRC_FILE}"
+  done
+done
+
+echo ">>> Sanity checking ..."
+GOLDEN_OUT="${TARGET}/${TARGET}.origin.out"
+for ty in "${TYPES[@]}" ; do
+  SRC_OUT="${TARGET}/${TARGET}.${ty}.out"
+  diff "${GOLDEN_OUT}" "${SRC_OUT}" >/dev/null 2>&1
+  err=$?
+  if [ "${err}" -eq 1 ]; then
+    echo "Failed comparison between ${GOLDEN_OUT} and ${SRC_OUT}"
+    exit 1
+  fi
+done
+echo "Done"
+echo ""
+
 # split.pluto.inner split.pluto.noscr 
-for ty in ${TYPES} ; do
+for ty in "${TYPES[@]}" ; do
   for with_pluto in "" ".pluto"; do 
     SRC_FILE="${TARGET}/${TARGET}.${ty}${with_pluto}.c"
     echo ">>> Running ${SRC_FILE} ..."

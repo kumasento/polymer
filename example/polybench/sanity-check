@@ -163,10 +163,10 @@ function verify() {
 
   find "${src_dir}" -name '*.out' -not -name '*.golden.out' -print0 |
     while IFS= read -r -d '' line; do 
-      res=$(diff "${golden_out}" "${line}" >/dev/null 2>&1)
-      if [ "${res}" != "" ]; then
+      diff "${golden_out}" "${line}" >/dev/null 2>&1
+      err=$?
+      if [ "${err}" -eq 1 ]; then
         echo "Failed comparison between ${golden_out} and ${line}"
-        echo "${res}"
         exit 1
       fi
     done
