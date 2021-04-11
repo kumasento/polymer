@@ -354,9 +354,9 @@ b0 i b1 j b2 k b3
 # File name
 (null)
 # Starting line and column
-88 0
+89 0
 # Ending line and column
-104 0
+107 0
 # Indentation
 2
 </coordinates>
@@ -2165,10 +2165,10 @@ Getting loop at depth  3
 [Pluto] Output written to 2mm.split2.pluto.c
 
 [pluto] Timing statistics
-[pluto] SCoP extraction + dependence analysis time: 0.002846s
-[pluto] Auto-transformation time: 0.039260s
-[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.004016s
-[pluto] Code generation time: 0.113877s
-[pluto] Other/Misc time: 0.124859s
-[pluto] Total time: 0.280842s
-[pluto] All times: 0.002846 0.039260 0.113877 0.124859
+[pluto] SCoP extraction + dependence analysis time: 0.002492s
+[pluto] Auto-transformation time: 0.039339s
+[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.004027s
+[pluto] Code generation time: 0.113428s
+[pluto] Other/Misc time: 0.125756s
+[pluto] Total time: 0.281015s
+[pluto] All times: 0.002492 0.039339 0.113428 0.125756

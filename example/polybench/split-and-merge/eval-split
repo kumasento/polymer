@@ -115,13 +115,10 @@ done
 echo ">>> Sanity checking ..."
 GOLDEN_OUT="${TARGET}/${TARGET}.origin.out"
 for ty in "${TYPES[@]}" ; do
-  SRC_OUT="${TARGET}/${TARGET}.${ty}.out"
-  diff "${GOLDEN_OUT}" "${SRC_OUT}" >/dev/null 2>&1
-  err=$?
-  if [ "${err}" -eq 1 ]; then
-    echo "Failed comparison between ${GOLDEN_OUT} and ${SRC_OUT}"
-    exit 1
-  fi
+  for with_pluto in "" ".pluto"; do 
+    SRC_OUT="${TARGET}/${TARGET}.${ty}${with_pluto}.out"
+    diff "${GOLDEN_OUT}" "${SRC_OUT}" >/dev/null 2>&1 || echo "Failed comparison between ${GOLDEN_OUT} and ${SRC_OUT}"
+  done
 done
 echo "Done"
 echo ""

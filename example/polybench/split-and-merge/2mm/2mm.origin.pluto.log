@@ -298,9 +298,9 @@ b0 i b1 j b2 k b3
 # File name
 (null)
 # Starting line and column
-87 0
+88 0
 # Ending line and column
-100 0
+103 0
 # Indentation
 2
 </coordinates>
@@ -1631,10 +1631,10 @@ loop types (scalar, loop, loop, scalar, loop, loop, loop, scalar, loop)
 [Pluto] Output written to 2mm.origin.pluto.c
 
 [pluto] Timing statistics
-[pluto] SCoP extraction + dependence analysis time: 0.003425s
-[pluto] Auto-transformation time: 0.021457s
-[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.002417s
-[pluto] Code generation time: 0.147739s
-[pluto] Other/Misc time: 0.180609s
-[pluto] Total time: 0.353231s
-[pluto] All times: 0.003425 0.021457 0.147739 0.180609
+[pluto] SCoP extraction + dependence analysis time: 0.003346s
+[pluto] Auto-transformation time: 0.021249s
+[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.002423s
+[pluto] Code generation time: 0.147468s
+[pluto] Other/Misc time: 0.179496s
+[pluto] Total time: 0.351559s
+[pluto] All times: 0.003346 0.021249 0.147468 0.179496

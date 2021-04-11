@@ -354,9 +354,9 @@ b0 i b1 j b2 k b3
 # File name
 (null)
 # Starting line and column
-88 0
+89 0
 # Ending line and column
-103 0
+106 0
 # Indentation
 2
 </coordinates>
@@ -2331,10 +2331,10 @@ loop types (scalar, loop, loop, scalar, loop, loop, scalar, loop, scalar)
 [Pluto] Output written to 2mm.split1.pluto.c
 
 [pluto] Timing statistics
-[pluto] SCoP extraction + dependence analysis time: 0.002382s
-[pluto] Auto-transformation time: 0.038038s
-[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.004314s
-[pluto] Code generation time: 0.130400s
-[pluto] Other/Misc time: 0.207726s
-[pluto] Total time: 0.378546s
-[pluto] All times: 0.002382 0.038038 0.130400 0.207726
+[pluto] SCoP extraction + dependence analysis time: 0.002351s
+[pluto] Auto-transformation time: 0.038070s
+[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.004328s
+[pluto] Code generation time: 0.130672s
+[pluto] Other/Misc time: 0.207858s
+[pluto] Total time: 0.378951s
+[pluto] All times: 0.002351 0.038070 0.130672 0.207858
