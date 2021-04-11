@@ -80,7 +80,8 @@ void kernel_2mm(int ni, int nj, int nk, int nl,
 		DATA_TYPE POLYBENCH_2D(A,NI,NK,ni,nk),
 		DATA_TYPE POLYBENCH_2D(B,NK,NJ,nk,nj),
 		DATA_TYPE POLYBENCH_2D(C,NJ,NL,nj,nl),
-		DATA_TYPE POLYBENCH_2D(D,NI,NL,ni,nl))
+		DATA_TYPE POLYBENCH_2D(D,NI,NL,ni,nl),
+    DATA_TYPE POLYBENCH_1D(S,NK,nk))
 {
   int i, j, k;
 
@@ -89,9 +90,11 @@ void kernel_2mm(int ni, int nj, int nk, int nl,
   for (i = 0; i < _PB_NI; i++)
     for (j = 0; j < _PB_NJ; j++)
       {
-	tmp[i][j] = SCALAR_VAL(0.0);
-	for (k = 0; k < _PB_NK; ++k)
-	  tmp[i][j] += alpha * A[i][k] * B[k][j];
+	// tmp[i][j] = SCALAR_VAL(0.0);
+	for (k = 0; k < _PB_NK; ++k) {
+    S[k] = alpha * A[i][k] * B[k][j];
+	  tmp[i][j] += S[k]; 
+  }
       }
   for (i = 0; i < _PB_NI; i++)
     for (j = 0; j < _PB_NL; j++)
@@ -121,6 +124,7 @@ int main(int argc, char** argv)
   POLYBENCH_2D_ARRAY_DECL(B,DATA_TYPE,NK,NJ,nk,nj);
   POLYBENCH_2D_ARRAY_DECL(C,DATA_TYPE,NJ,NL,nj,nl);
   POLYBENCH_2D_ARRAY_DECL(D,DATA_TYPE,NI,NL,ni,nl);
+  POLYBENCH_1D_ARRAY_DECL(S,DATA_TYPE,NK,nk);
 
   /* Initialize array(s). */
   init_array (ni, nj, nk, nl, &alpha, &beta,
@@ -139,7 +143,8 @@ int main(int argc, char** argv)
 	      POLYBENCH_ARRAY(A),
 	      POLYBENCH_ARRAY(B),
 	      POLYBENCH_ARRAY(C),
-	      POLYBENCH_ARRAY(D));
+	      POLYBENCH_ARRAY(D),
+        POLYBENCH_ARRAY(S));
 
   /* Stop and print timer. */
   polybench_stop_instruments;

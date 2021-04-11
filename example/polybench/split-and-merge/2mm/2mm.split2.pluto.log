@@ -2165,10 +2165,10 @@ Getting loop at depth  3
 [Pluto] Output written to 2mm.split2.pluto.c
 
 [pluto] Timing statistics
-[pluto] SCoP extraction + dependence analysis time: 0.002492s
-[pluto] Auto-transformation time: 0.039339s
-[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.004027s
-[pluto] Code generation time: 0.113428s
-[pluto] Other/Misc time: 0.125756s
-[pluto] Total time: 0.281015s
-[pluto] All times: 0.002492 0.039339 0.113428 0.125756
+[pluto] SCoP extraction + dependence analysis time: 0.002649s
+[pluto] Auto-transformation time: 0.039279s
+[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.004037s
+[pluto] Code generation time: 0.113310s
+[pluto] Other/Misc time: 0.124873s
+[pluto] Total time: 0.280111s
+[pluto] All times: 0.002649 0.039279 0.113310 0.124873

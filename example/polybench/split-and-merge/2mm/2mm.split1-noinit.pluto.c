@@ -1,3 +1,9 @@
+#include <math.h>
+#define ceild(n,d)  (((n)<0) ? -((-(n))/(d)) : ((n)+(d)-1)/(d))
+#define floord(n,d) (((n)<0) ? -((-(n)+(d)-1)/(d)) : (n)/(d))
+#define max(x,y)    ((x) > (y)? (x) : (y))
+#define min(x,y)    ((x) < (y)? (x) : (y))
+
 /**
  * This version is stamped on May 10, 2016
  *
@@ -80,27 +86,51 @@ void kernel_2mm(int ni, int nj, int nk, int nl,
 		DATA_TYPE POLYBENCH_2D(A,NI,NK,ni,nk),
 		DATA_TYPE POLYBENCH_2D(B,NK,NJ,nk,nj),
 		DATA_TYPE POLYBENCH_2D(C,NJ,NL,nj,nl),
-		DATA_TYPE POLYBENCH_2D(D,NI,NL,ni,nl))
+		DATA_TYPE POLYBENCH_2D(D,NI,NL,ni,nl),
+    DATA_TYPE POLYBENCH_1D(S,NK,nk))
 {
   int i, j, k;
 
-#pragma scop
-  /* D := alpha*A*B*C + beta*D */
-  for (i = 0; i < _PB_NI; i++)
-    for (j = 0; j < _PB_NJ; j++)
-      {
-	tmp[i][j] = SCALAR_VAL(0.0);
-	for (k = 0; k < _PB_NK; ++k)
-	  tmp[i][j] += alpha * A[i][k] * B[k][j];
+  int t1, t2, t3, t4, t5, t6, t7, t8;
+ register int lbv, ubv;
+if (_PB_NI >= 1) {
+  if (_PB_NL >= 1) {
+    for (t2=0;t2<=floord(_PB_NI-1,32);t2++) {
+      for (t3=0;t3<=floord(_PB_NL-1,32);t3++) {
+        for (t4=32*t2;t4<=min(_PB_NI-1,32*t2+31);t4++) {
+          for (t5=32*t3;t5<=min(_PB_NL-1,32*t3+31);t5++) {
+            D[t4][t5] *= beta;;
+          }
+        }
       }
-  for (i = 0; i < _PB_NI; i++)
-    for (j = 0; j < _PB_NL; j++)
-      {
-	D[i][j] *= beta;
-	for (k = 0; k < _PB_NJ; ++k)
-	  D[i][j] += tmp[i][k] * C[k][j];
+    }
+  }
+  if (_PB_NJ >= 1) {
+    for (t2=0;t2<=_PB_NI-1;t2++) {
+      for (t3=0;t3<=_PB_NJ-1;t3++) {
+        if (_PB_NK >= 1) {
+          for (t6=0;t6<=floord(_PB_NK-1,32);t6++) {
+            for (t7=32*t6;t7<=min(_PB_NK-1,32*t6+31);t7++) {
+              S[t7] = alpha * A[t2][t7] * B[t7][t3];;
+            }
+          }
+        }
+        if (_PB_NK >= 1) {
+          for (t6=0;t6<=_PB_NK-1;t6++) {
+            tmp[t2][t3] += S[t6];;
+          }
+        }
+        if (_PB_NL >= 1) {
+          for (t6=0;t6<=floord(_PB_NL-1,32);t6++) {
+            for (t7=32*t6;t7<=min(_PB_NL-1,32*t6+31);t7++) {
+              D[t2][t7] += tmp[t2][t3] * C[t3][t7];;
+            }
+          }
+        }
       }
-#pragma endscop
+    }
+  }
+}
 
 }
 
@@ -121,6 +151,7 @@ int main(int argc, char** argv)
   POLYBENCH_2D_ARRAY_DECL(B,DATA_TYPE,NK,NJ,nk,nj);
   POLYBENCH_2D_ARRAY_DECL(C,DATA_TYPE,NJ,NL,nj,nl);
   POLYBENCH_2D_ARRAY_DECL(D,DATA_TYPE,NI,NL,ni,nl);
+  POLYBENCH_1D_ARRAY_DECL(S,DATA_TYPE,NK,nk);
 
   /* Initialize array(s). */
   init_array (ni, nj, nk, nl, &alpha, &beta,
@@ -139,7 +170,8 @@ int main(int argc, char** argv)
 	      POLYBENCH_ARRAY(A),
 	      POLYBENCH_ARRAY(B),
 	      POLYBENCH_ARRAY(C),
-	      POLYBENCH_ARRAY(D));
+	      POLYBENCH_ARRAY(D),
+        POLYBENCH_ARRAY(S));
 
   /* Stop and print timer. */
   polybench_stop_instruments;
