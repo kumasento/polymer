@@ -3556,10 +3556,10 @@ Getting loop at depth  7
 [Pluto] Output written to gramschmidt.split3.pluto.c
 
 [pluto] Timing statistics
-[pluto] SCoP extraction + dependence analysis time: 0.001880s
-[pluto] Auto-transformation time: 0.099402s
-[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.007826s
-[pluto] Code generation time: 0.023158s
-[pluto] Other/Misc time: 0.086610s
-[pluto] Total time: 0.211050s
-[pluto] All times: 0.001880 0.099402 0.023158 0.086610
+[pluto] SCoP extraction + dependence analysis time: 0.003197s
+[pluto] Auto-transformation time: 0.115097s
+[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.008427s
+[pluto] Code generation time: 0.027368s
+[pluto] Other/Misc time: 0.094198s
+[pluto] Total time: 0.239860s
+[pluto] All times: 0.003197 0.115097 0.027368 0.094198

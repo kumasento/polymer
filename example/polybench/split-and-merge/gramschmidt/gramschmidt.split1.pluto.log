@@ -3140,17 +3140,7 @@ loop types (scalar, loop, scalar, loop, scalar, loop)
 [pluto] dep_satisfaction_update: dep 1 satisfied
 [pluto] dep_satisfaction_update: dep 2 satisfied
 [pluto] dep_satisfaction_update: dep 3 satisfied
-[pluto] t9 {loop with stmts: S7, }
-t7 {loop with stmts: S7, }
-t7 {loop with stmts: S7, }
-t9 {loop with stmts: S8, }
-t7 {loop with stmts: S8, }
-t7 {loop with stmts: S8, }
-t7 {loop with stmts: S6, }
-t5 {loop with stmts: S6, }
-t5 {loop with stmts: S2, }
-t5 {loop with stmts: S5, }
-dep_satisfaction_update: dep 7 satisfied
+[pluto] dep_satisfaction_update: dep 7 satisfied
 [pluto] dep_satisfaction_update: dep 12 satisfied
 [pluto] dep_satisfaction_update: dep 16 satisfied
 [pluto] dep_satisfaction_update: dep 19 satisfied
@@ -3250,7 +3240,17 @@ loop types (scalar, loop, scalar, loop, scalar, loop)
 [pluto] dep_satisfaction_update: dep 36 satisfied
 [pluto] dep_satisfaction_update: dep 37 satisfied
 [pluto] dep_satisfaction_update: dep 38 satisfied
-	 19 dep(s) satisfied
+	 19 dep(s) satit9 {loop with stmts: S7, }
+t7 {loop with stmts: S7, }
+t7 {loop with stmts: S7, }
+t9 {loop with stmts: S8, }
+t7 {loop with stmts: S8, }
+t7 {loop with stmts: S8, }
+t7 {loop with stmts: S6, }
+t5 {loop with stmts: S6, }
+t5 {loop with stmts: S2, }
+t5 {loop with stmts: S5, }
+sfied
 [pluto] dep_satisfaction_update (level 2)
 [pluto] dep_satisfaction_update: dep 5 satisfied
 [pluto] dep_satisfaction_update: dep 6 satisfied
@@ -3410,10 +3410,10 @@ loop types (scalar, loop, scalar, loop, scalar, loop, loop, scalar, loop)
 [Pluto] Output written to gramschmidt.split1.pluto.c
 
 [pluto] Timing statistics
-[pluto] SCoP extraction + dependence analysis time: 0.001893s
-[pluto] Auto-transformation time: 0.084388s
-[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.006732s
-[pluto] Code generation time: 0.037100s
-[pluto] Other/Misc time: 0.144435s
-[pluto] Total time: 0.267816s
-[pluto] All times: 0.001893 0.084388 0.037100 0.144435
+[pluto] SCoP extraction + dependence analysis time: 0.003198s
+[pluto] Auto-transformation time: 0.098362s
+[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.007337s
+[pluto] Code generation time: 0.044044s
+[pluto] Other/Misc time: 0.160547s
+[pluto] Total time: 0.306151s
+[pluto] All times: 0.003198 0.098362 0.044044 0.160547

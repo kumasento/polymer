@@ -3060,10 +3060,10 @@ loop types (scalar, loop, scalar, loop, scalar, loop, loop, scalar, loop)
 [Pluto] Output written to gramschmidt.origin.pluto.c
 
 [pluto] Timing statistics
-[pluto] SCoP extraction + dependence analysis time: 0.001926s
-[pluto] Auto-transformation time: 0.059613s
-[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.005279s
-[pluto] Code generation time: 0.046031s
-[pluto] Other/Misc time: 0.131932s
-[pluto] Total time: 0.239502s
-[pluto] All times: 0.001926 0.059613 0.046031 0.131932
+[pluto] SCoP extraction + dependence analysis time: 0.004367s
+[pluto] Auto-transformation time: 0.071920s
+[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.006140s
+[pluto] Code generation time: 0.038406s
+[pluto] Other/Misc time: 0.152992s
+[pluto] Total time: 0.267685s
+[pluto] All times: 0.004367 0.071920 0.038406 0.152992

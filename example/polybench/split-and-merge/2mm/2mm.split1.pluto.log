@@ -2072,14 +2072,7 @@ linear independence constraints
 [pluto] find_permutable_hyperplanes: found a hyperplane
 h(S1) = 0, h(S2) = k, h(S3) = k, h(S4) = 0, h(S5) = j
 [pluto] pluto_auto_transform: band level 3; 1 hyperplane(s) found
-T(S1): (0t5 {loop with stmts: S1, S4, }
-t4 {loop with stmts: S1, S4, }
-t8 {loop with stmts: S2, S3, }
-t6 {loop with stmts: S2, S3, }
-t6 {loop with stmts: S2, S3, }
-t8 {loop with stmts: S5, }
-t6 {loop with stmts: S5, }
-, i, j, 1, 0)
+T(S1): (0, i, j, 1, 0)
 loop types (scalar, loop, loop, scalar, scalar)
 
 T(S2): (1, i, j, 0, k)
@@ -2199,7 +2192,14 @@ loop types (scalar, loop, loop, scalar, loop, scalar)
 [pluto] pluto_dep_satisfaction_reset
 [pluto] dep_satisfaction_update (level 0)
 [pluto] dep_satisfaction_update: dep 2 satisfied
-[pluto] dep_satisfaction_update: dep 3 satisfied
+[pluto] dep_st5 {loop with stmts: S1, S4, }
+t4 {loop with stmts: S1, S4, }
+t8 {loop with stmts: S2, S3, }
+t6 {loop with stmts: S2, S3, }
+t6 {loop with stmts: S2, S3, }
+t8 {loop with stmts: S5, }
+t6 {loop with stmts: S5, }
+atisfaction_update: dep 3 satisfied
 [pluto] dep_satisfaction_update: dep 4 satisfied
 [pluto] dep_satisfaction_update: dep 11 satisfied
 [pluto] dep_satisfaction_update: dep 15 satisfied
@@ -2331,10 +2331,10 @@ loop types (scalar, loop, loop, scalar, loop, loop, scalar, loop, scalar)
 [Pluto] Output written to 2mm.split1.pluto.c
 
 [pluto] Timing statistics
-[pluto] SCoP extraction + dependence analysis time: 0.001515s
-[pluto] Auto-transformation time: 0.033314s
-[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.003908s
-[pluto] Code generation time: 0.108794s
-[pluto] Other/Misc time: 0.198991s
-[pluto] Total time: 0.342614s
-[pluto] All times: 0.001515 0.033314 0.108794 0.198991
+[pluto] SCoP extraction + dependence analysis time: 0.002382s
+[pluto] Auto-transformation time: 0.038038s
+[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.004314s
+[pluto] Code generation time: 0.130400s
+[pluto] Other/Misc time: 0.207726s
+[pluto] Total time: 0.378546s
+[pluto] All times: 0.002382 0.038038 0.130400 0.207726
