@@ -2331,10 +2331,10 @@ loop types (scalar, loop, loop, scalar, loop, loop, scalar, loop, scalar)
 [Pluto] Output written to 2mm.split1.pluto.c
 
 [pluto] Timing statistics
-[pluto] SCoP extraction + dependence analysis time: 0.002346s
-[pluto] Auto-transformation time: 0.038212s
-[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.004318s
-[pluto] Code generation time: 0.130818s
-[pluto] Other/Misc time: 0.208342s
-[pluto] Total time: 0.379718s
-[pluto] All times: 0.002346 0.038212 0.130818 0.208342
+[pluto] SCoP extraction + dependence analysis time: 0.002482s
+[pluto] Auto-transformation time: 0.038115s
+[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.004322s
+[pluto] Code generation time: 0.130652s
+[pluto] Other/Misc time: 0.208285s
+[pluto] Total time: 0.379534s
+[pluto] All times: 0.002482 0.038115 0.130652 0.208285
