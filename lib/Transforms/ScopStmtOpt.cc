@@ -164,7 +164,8 @@ static void scopStmtSplit(ModuleOp m, OpBuilder &b, FuncOp f, mlir::CallOp call,
   b.setInsertionPointAfterValue(memSize);
   // Allocation of the scratchpad memory.
   Operation *scrAlloc =
-      b.create<memref::AllocOp>(forOp.getLoc(), memType, memSize);
+      b.create<memref::AllocaOp>(forOp.getLoc(), memType, memSize);
+  scrAlloc->setAttr("scop.scratchpad", b.getUnitAttr());
 
   // Pass it into the target function.
   Value scrInFunc = appendArgument(scrAlloc->getResult(0), f, call, b);
@@ -322,10 +323,130 @@ struct AnnotateSplittablePass
 
 } // namespace
 
+static int64_t findOperand(Value value, Operation *op) {
+  for (auto operand : enumerate(op->getOperands()))
+    if (operand.value() == value)
+      return operand.index();
+  return -1;
+}
+
+static void unifyScratchpad(FuncOp f, ModuleOp m, OpBuilder &b) {
+  // First find all the scratchpads generated.
+  SmallVector<Value, 4> scratchpads;
+  f.getBody().walk([&](memref::AllocaOp op) {
+    if (op->hasAttr("scop.scratchpad"))
+      scratchpads.push_back(op.getResult());
+  });
+
+  // No need to unify.
+  if (scratchpads.size() == 1)
+    return;
+
+  // Let's assume they all have the same dimensionality and the same element
+  // type.
+  size_t numDim;
+  Type elemType;
+  SmallVector<size_t, 4> numDims;
+  for (size_t i = 0; i < scratchpads.size(); i++) {
+    Value scr = scratchpads[i];
+    MemRefType memType = scr.getType().cast<MemRefType>();
+    if (i == 0) {
+      numDim = memType.getShape().size();
+      elemType = memType.getElementType();
+    }
+    if (memType.getShape().size() != numDim ||
+        elemType != memType.getElementType()) { // Just exit, no effect.
+      return;
+    }
+  }
+
+  // Create a new scratchpad by taking the max dim size.
+  SmallVector<int64_t, 4> shape(numDim, -1);
+  MemRefType newMemType = MemRefType::get(shape, elemType);
+
+  // Insert after the last scratchpad discovered.
+  b.setInsertionPointAfterValue(scratchpads.back());
+
+  SmallVector<Value, 4> maxDims;
+  for (size_t d = 0; d < numDim; d++) {
+    SmallVector<Value, 4> dims;
+    for (Value scr : scratchpads) {
+      memref::AllocaOp op = scr.getDefiningOp<memref::AllocaOp>();
+      dims.push_back(op.getOperand(d));
+    }
+
+    Value maxDim = b.create<mlir::AffineMaxOp>(
+        dims.front().getLoc(), dims.front().getType(),
+        b.getMultiDimIdentityMap(dims.size()), ValueRange(dims));
+    maxDims.push_back(maxDim);
+  }
+
+  Value newScr =
+      b.create<memref::AllocaOp>(scratchpads.back().getDefiningOp()->getLoc(),
+                                 newMemType, ValueRange(maxDims));
+
+  // Then, replace the use of the first scratchpads with this one.
+  scratchpads.front().replaceAllUsesWith(newScr);
+
+  for (Operation *op : newScr.getUsers()) {
+    if (mlir::CallOp caller = dyn_cast<mlir::CallOp>(op)) {
+      FuncOp callee = m.lookupSymbol<FuncOp>(caller.getCallee());
+
+      int64_t newMemIdx = findOperand(newScr, caller);
+
+      // Replace scratchpad uses.
+      for (Value scr : scratchpads)
+        for (auto operand : enumerate(ValueRange(caller->getOperands())))
+          if (operand.value() == scr)
+            callee.getArgument(operand.index())
+                .replaceAllUsesWith(callee.getArgument(newMemIdx));
+    }
+  }
+}
+
+static bool hasScratchpadDefined(FuncOp f) {
+  bool result = false;
+
+  f.getBody().walk([&](memref::AllocaOp op) {
+    if (!result && op->hasAttr("scop.scratchpad")) {
+      result = true;
+      return;
+    }
+  });
+
+  return result;
+}
+
+namespace {
+
+/// Find scratchpads created by statement split and unify them into a single
+/// one.
+struct UnifyScratchpadPass
+    : public mlir::PassWrapper<UnifyScratchpadPass, OperationPass<ModuleOp>> {
+  void runOnOperation() override {
+    ModuleOp m = getOperation();
+    OpBuilder b(m.getContext());
+
+    // First find the main function that has those scratchpad declared.
+    FuncOp f;
+    m.walk([&](FuncOp fun) {
+      if (!f && hasScratchpadDefined(fun)) {
+        f = fun;
+        return;
+      }
+    });
+
+    unifyScratchpad(f, m, b);
+  }
+};
+} // namespace
+
 void polymer::registerScopStmtOptPasses() {
   PassRegistration<AnnotateSplittablePass>(
       "annotate-splittable",
       "Give operations that are splittable in its expression tree.");
   PassRegistration<ScopStmtSplitPass>(
       "scop-stmt-split", "Split a given set of splittable operations.");
+  PassRegistration<UnifyScratchpadPass>(
+      "unify-scratchpad", "Unify multiple scratchpads into a single one.");
 }

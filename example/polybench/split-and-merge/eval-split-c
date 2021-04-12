@@ -2,7 +2,7 @@
 # Evaluate the statement splitting.
 
 # Usage:
-#   eval-split <TARGET> <TYPES>
+#   eval-split-c <TARGET> <TYPES>
 # 
 # TARGET can be one of the subdirectories.
 # TYPES are what you are going to compare, e.g., "origin split", etc.
