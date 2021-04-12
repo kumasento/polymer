@@ -19,7 +19,7 @@ PLUTO_DIR="${DIR}/../../../pluto"
 
 # Compilation options.
 CLANG_FLAGS=(-fno-vectorize -fno-slp-vectorize -fno-tree-vectorize -fno-unroll-loops)
-POLYBENCH_FLAGS=(-I "${UTILITIES_DIR}" -I "${LLVM_DIR}/build/lib/clang/13.0.0/include/" -D POLYBENCH_TIME -D EXTRALARGE_DATASET)
+POLYBENCH_FLAGS=(-I "${UTILITIES_DIR}" -I "${LLVM_DIR}/build/lib/clang/13.0.0/include/")
 LDFLAGS=(-lm)
 
 # ----------------------------- Setup ENV -------------------------------------
@@ -31,8 +31,16 @@ export PATH="${BUILD_DIR}/bin:${PATH}"
 function compile_mlir() {
   local src_file="$1"
   local dst_file="${src_file%.c}.mlir"
+  local polybench_flags=("${POLYBENCH_FLAGS[@]}")
+  local mode="$2"
 
-  mlir-clang "${src_file}" "${POLYBENCH_FLAGS[@]}" 2>&1 | tee "${dst_file}" &>/dev/null
+  if [ "${mode}" = "debug" ]; then
+    polybench_flags+=( -D MINI_DATASET -D POLYBENCH_DUMP_ARRAYS )
+  else
+    polybench_flags+=( -D EXTRALARGE_DATASET -D POLYBENCH_TIME )
+  fi
+
+  mlir-clang "${src_file}" "${polybench_flags[@]}" 2>&1 | tee "${dst_file}" &>/dev/null
 }
 
 function annotate_splittable() {
@@ -64,11 +72,10 @@ function compile() {
   local src_file="$1"
   local llvm_file="${src_file%.mlir}.ll"
   local dst_file="${src_file%.mlir}.exe"
-
-  mlir-opt -lower-affine -convert-scf-to-std -canonicalize -inline -convert-std-to-llvm "${src_file}" |\
+  mlir-opt -lower-affine -convert-scf-to-std -canonicalize -convert-std-to-llvm "${src_file}" |\
     mlir-translate -mlir-to-llvmir > "${llvm_file}"
 
-  clang "${llvm_file}" "${POLYBENCH_SRC_FILE}" -march=native -O3 "${CLANG_FLAGS[@]}" -o "${dst_file}" "${LDFLAGS[@]}" "${POLYBENCH_FLAGS[@]}"
+  clang "${llvm_file}" "${POLYBENCH_SRC_FILE}" -O3 "${CLANG_FLAGS[@]}" -o "${dst_file}" "${LDFLAGS[@]}"
 
 }
 
@@ -88,8 +95,6 @@ function run() {
   echo "${result_str}"
 }
 
-
-
 # Update build if necessary
 function try_rebuild() {
   cd "${PWD}/../../../build" && cmake --build . --target all >/dev/null 2>&1  && cd - &>/dev/null
@@ -100,7 +105,23 @@ TARGET="${1}/${1}.origin.c"
 SPLIT_IDS=("${ALL_ARGS[@]:1}")
 
 try_rebuild
-compile_mlir "${TARGET}"
+
+# sanity check
+echo ">>> Sanity check ..."
+compile_mlir "${TARGET}" "debug"
+annotate_splittable "${TARGET%.c}.mlir"
+polymer_opt "${TARGET%.c}.splittable.mlir" "${SPLIT_IDS[@]}"
+compile "${TARGET%.c}.mlir"
+compile "${TARGET%.c}.polymer.mlir"
+
+"${TARGET%.c}.exe" > "${TARGET%.c}.out"
+"${TARGET%.c}.polymer.exe" > "${TARGET%.c}.polymer.out"
+
+diff "${TARGET%.c}.out" "${TARGET%.c}.polymer.out" &>/dev/null || echo "Sanity check ERROR!"
+
+# Performance
+echo ">>> Evaluate performance ..."
+compile_mlir "${TARGET}" "perf"
 annotate_splittable "${TARGET%.c}.mlir"
 polymer_opt "${TARGET%.c}.splittable.mlir" "${SPLIT_IDS[@]}"
 compile "${TARGET%.c}.mlir"
