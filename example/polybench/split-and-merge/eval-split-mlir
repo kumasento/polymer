@@ -114,10 +114,10 @@ polymer_opt "${TARGET%.c}.splittable.mlir" "${SPLIT_IDS[@]}"
 compile "${TARGET%.c}.mlir"
 compile "${TARGET%.c}.polymer.mlir"
 
-"${TARGET%.c}.exe" > "${TARGET%.c}.out"
-"${TARGET%.c}.polymer.exe" > "${TARGET%.c}.polymer.out"
+"${TARGET%.c}.exe" > "${TARGET%.c}.out" 2>&1
+"${TARGET%.c}.polymer.exe"> "${TARGET%.c}.polymer.out" 2>&1 
 
-diff "${TARGET%.c}.out" "${TARGET%.c}.polymer.out" &>/dev/null || echo "Sanity check ERROR!"
+diff "${TARGET%.c}.out" "${TARGET%.c}.polymer.out" >/dev/null 2>&1 || echo "Sanity check ERROR!"
 
 # Performance
 echo ">>> Evaluate performance ..."
