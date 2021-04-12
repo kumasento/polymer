@@ -103,5 +103,5 @@ polymer_opt "${TARGET%.c}.splittable.mlir" "${SPLIT_IDS[@]}"
 compile "${TARGET%.c}.mlir"
 compile "${TARGET%.c}.polymer.mlir"
 
-run "${TARGET%.c}.exe" 5
+# run "${TARGET%.c}.exe" 5
 run "${TARGET%.c}.polymer.exe" 5
