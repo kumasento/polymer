@@ -311,9 +311,9 @@ function eval_dir() {
 }
 
 if [ -f "${TEST_CASE}" ]; then
-  run_pluto "${TEST_CASE}" pluto_exe_file PLUTO_RUN_TIME
-  echo "Execute file: ${pluto_exe_file}"
-  echo "Pluto run time:   ${PLUTO_RUN_TIME}" 
+  # run_pluto "${TEST_CASE}" pluto_exe_file PLUTO_RUN_TIME
+  # echo "Execute file: ${pluto_exe_file}"
+  # echo "Pluto run time:   ${PLUTO_RUN_TIME}" 
 
   run_polymer "${TEST_CASE}" polymer_exe_file POLYMER_RUN_TIME
   echo "Execute file: ${polymer_exe_file}"

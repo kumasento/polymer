@@ -52,7 +52,10 @@ function polymer_opt() {
   for id in "${split_ids[@]}"; do
     polymer_options+=(-scop-stmt-split="to-split=${id}")
   done
-  polymer_options+=("-unify-scratchpad" "-canonicalize" "-reg2mem" "-extract-scop-stmt" "-pluto-opt")
+  if (( ${#split_ids[@]} )); then
+    polymer_options+=(-unify-scratchpad)
+  fi
+  polymer_options+=("-canonicalize" "-reg2mem" "-extract-scop-stmt" "-pluto-opt")
 
   polymer-opt "${polymer_options[@]}" "${src_file}" 2>/dev/null | tee "${dst_file}" &>/dev/null
 }
@@ -62,10 +65,10 @@ function compile() {
   local llvm_file="${src_file%.mlir}.ll"
   local dst_file="${src_file%.mlir}.exe"
 
-  mlir-opt -lower-affine -convert-scf-to-std -canonicalize -convert-std-to-llvm "${src_file}" |\
+  mlir-opt -lower-affine -convert-scf-to-std -canonicalize -inline -convert-std-to-llvm "${src_file}" |\
     mlir-translate -mlir-to-llvmir > "${llvm_file}"
 
-  clang "${llvm_file}" "${POLYBENCH_SRC_FILE}" -O3 "${CLANG_FLAGS[@]}" -o "${dst_file}" "${LDFLAGS[@]}" "${POLYBENCH_FLAGS[@]}"
+  clang "${llvm_file}" "${POLYBENCH_SRC_FILE}" -march=native -O3 "${CLANG_FLAGS[@]}" -o "${dst_file}" "${LDFLAGS[@]}" "${POLYBENCH_FLAGS[@]}"
 
 }
 
@@ -78,7 +81,7 @@ function run() {
 
   result_str="$(basename "${exe_file%.exe}")"
   until [ $i -ge "${num_runs}" ]; do
-    result_str="${result_str},$(taskset -c 1-1 numactl -i all "${exe_file}")"
+    result_str="${result_str},$(taskset -c 0-0 numactl -i all "${exe_file}")"
     ((i=i+1))
   done
 
