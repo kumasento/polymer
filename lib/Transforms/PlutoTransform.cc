@@ -44,9 +44,12 @@ struct PlutoOptPipelineOptions
       *this, "dump-clast-after-pluto",
       llvm::cl::desc("File name for dumping the CLooG AST (clast) after Pluto "
                      "optimization.")};
-  Option<bool> parallelize{
-      *this, "parallelize",
-      llvm::cl::desc("Enable parallelization from Pluto.")};
+  Option<bool> parallelize{*this, "parallelize",
+                           llvm::cl::desc("Enable parallelization from Pluto."),
+                           llvm::cl::init(false)};
+  Option<bool> debug{*this, "debug",
+                     llvm::cl::desc("Enable moredebug in Pluto."),
+                     llvm::cl::init(false)};
   Option<bool> generateParallel{
       *this, "gen-parallel", llvm::cl::desc("Generate parallel affine loops."),
       llvm::cl::init(false)};
@@ -58,7 +61,8 @@ struct PlutoOptPipelineOptions
 /// TODO: transform options?
 static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
                                    std::string dumpClastAfterPluto,
-                                   bool parallelize) {
+                                   bool parallelize = false,
+                                   bool debug = false) {
 
   PlutoContext *context = pluto_context_alloc();
   OslSymbolTable srcTable, dstTable;
@@ -72,8 +76,9 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
   osl_scop_print(stderr, scop->get());
 
   // Should use isldep, candl cannot work well for this case.
-  context->options->silent = 1;
-  context->options->moredebug = 0;
+  context->options->silent = !debug;
+  context->options->moredebug = debug;
+  context->options->debug = debug;
   context->options->isldep = 1;
   context->options->readscop = 1;
 
@@ -85,6 +90,12 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
   PlutoProg *prog = osl_scop_to_pluto_prog(scop->get(), context);
   pluto_schedule_prog(prog);
   pluto_populate_scop(scop->get(), prog, context);
+
+  if (debug) { // Otherwise things dumped afterwards will mess up.
+    fflush(stderr);
+    fflush(stdout);
+  }
+
   osl_scop_print(stderr, scop->get());
 
   const char *dumpClastAfterPlutoStr = nullptr;
@@ -106,13 +117,14 @@ class PlutoTransformPass
                                OperationPass<mlir::ModuleOp>> {
   std::string dumpClastAfterPluto = "";
   bool parallelize = false;
+  bool debug = false;
 
 public:
   PlutoTransformPass() = default;
   PlutoTransformPass(const PlutoTransformPass &pass) {}
   PlutoTransformPass(const PlutoOptPipelineOptions &options)
       : dumpClastAfterPluto(options.dumpClastAfterPluto),
-        parallelize(options.parallelize) {}
+        parallelize(options.parallelize), debug(options.debug) {}
 
   void runOnOperation() override {
     mlir::ModuleOp m = getOperation();
@@ -128,7 +140,7 @@ public:
 
     for (mlir::FuncOp f : funcOps)
       if (mlir::FuncOp g =
-              plutoTransform(f, b, dumpClastAfterPluto, parallelize)) {
+              plutoTransform(f, b, dumpClastAfterPluto, parallelize, debug)) {
         funcMap[f] = g;
         g.setPrivate();
       }

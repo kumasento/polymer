@@ -170,6 +170,6 @@ jobs:
       - name: Run Polybench Tests
         run: |
           cd example/polybench
-          LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PWD}/pluto/lib" ./sanity-check EXTRALARGE 
+          LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PWD}/pluto/lib" ./sanity-check-data EXTRALARGE 
 
 
