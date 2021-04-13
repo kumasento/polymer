@@ -29,7 +29,7 @@ export PATH="${LLVM_DIR}/build/bin:${PATH}"
 export PATH="${BUILD_DIR}/bin:${PATH}"
 
 export C_INCLUDE_PATH="${LLVM_DIR}/build/projects/openmp/runtime/src"
-export LD_LIBRARY_PATH="${LLVM_DIR}/build/lib:${LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH="${LLVM_DIR}/build/lib:${BUILD_DIR}/pluto/lib:${LD_LIBRARY_PATH:-""}"
 
 # -----------------------------  Compile  -------------------------------------
 function compile_mlir() {
@@ -69,7 +69,7 @@ function polymer_opt() {
     polymer_options+=(-unify-scratchpad)
   fi
 
-  polymer_options+=("-canonicalize" "-reg2mem" "-extract-scop-stmt")
+  polymer_options+=("-canonicalize" "-reg2mem" "-insert-redundant-load" "-extract-scop-stmt")
   if [ "${mode}" = "seq" ]; then
     polymer_options+=(-pluto-opt)
   else
@@ -88,17 +88,18 @@ function compile() {
   clang_flags+=( -D POLYBENCH_TIME )
 
   if [ "${mode}" = "seq" ]; then
-    mlir-opt -lower-affine -convert-scf-to-std -canonicalize -convert-std-to-llvm "${src_file}" |\
+    mlir-opt -inline -lower-affine -convert-scf-to-std -canonicalize -convert-std-to-llvm "${src_file}" |\
       mlir-translate -mlir-to-llvmir > "${llvm_file}"
   else
-    mlir-opt -mem2reg -detect-reduction -mem2reg -canonicalize -affine-parallelize \
-      -lower-affine -convert-scf-to-openmp -convert-scf-to-std -convert-openmp-to-llvm \
+    echo $src_file
+    # -mem2reg -detect-reduction -mem2reg -canonicalize -affine-parallelize -lower-affine -convert-scf-to-openmp -convert-scf-to-std -convert-openmp-to-llvm
+    mlir-opt -inline -mem2reg -canonicalize -detect-reduction -mem2reg -canonicalize -affine-parallelize -lower-affine -convert-scf-to-openmp -convert-scf-to-std -convert-openmp-to-llvm \
       "${src_file}" | mlir-translate -mlir-to-llvmir > "${llvm_file}"
 
     clang_flags+=(-fopenmp)
   fi
 
-  clang "${llvm_file}" "${POLYBENCH_SRC_FILE}" -O3 "${clang_flags[@]}" -o "${dst_file}" "${LDFLAGS[@]}"
+  clang "${llvm_file}" "${POLYBENCH_SRC_FILE}" -O3 -march=native "${clang_flags[@]}" -o "${dst_file}" "${LDFLAGS[@]}"
 
 }
 
