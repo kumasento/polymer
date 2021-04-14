@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+
+function perf_count() {
+  local cmd="$1"
+  local perf_result
+  perf_result="$(perf stat -e cycles,instructions,branches,branch-misses,cache-references,cache-misses,bus-cycles,L1-dcache-loads,L1-dcache-load-misses,L1-dcache-stores,dTLB-loads,dTLB-load-misses,LLC-loads,LLC-load-misses,LLC-stores taskset -c 1-8 numactl -a "${cmd}")"
+
+  echo "${perf_result}"
+}
+
+perf_count "./2mm/2mm.nosplit.polymer.seq.exe"
+perf_count "./2mm/2mm.split-0-2.polymer.seq.exe"
+perf_count "./3mm/3mm.nosplit.polymer.seq.exe"
+perf_count "./3mm/3mm.split-0-1-2.polymer.seq.exe"
+perf_count "./correlation/correlation.nosplit.polymer.seq.exe"
+perf_count "./correlation/correlation.split-8.polymer.seq.exe"
+perf_count "./covariance/covariance.nosplit.polymer.seq.exe"
+perf_count "./covariance/covariance.split-0.polymer.seq.exe"
+perf_count "./gramschmidt/gramschmidt.nosplit.polymer.seq.exe"
+perf_count "./gramschmidt/gramschmidt.split-0.polymer.seq.exe"

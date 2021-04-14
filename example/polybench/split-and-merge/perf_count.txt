@@ -1,0 +1,250 @@
+
+ Performance counter stats for 'taskset -c 1-8 numactl -a ./2mm/2mm.nosplit.polymer.seq.exe':
+
+        8856193283      cycles:u                                                      (20.04%)
+       14007047320      instructions:u            #    1.58  insn per cycle           (26.72%)
+        1072120573      branches:u                                                    (33.38%)
+           7281792      branch-misses:u           #    0.68% of all branches          (33.38%)
+         114202136      cache-references:u                                            (33.38%)
+          36820291      cache-misses:u            #   32.241 % of all cache refs      (33.33%)
+          74102345      bus-cycles:u                                                  (26.65%)
+        5911586596      L1-dcache-loads:u                                             (26.65%)
+         202940578      L1-dcache-load-misses:u   #    3.43% of all L1-dcache hits    (26.65%)
+        1674611540      L1-dcache-stores:u                                            (26.65%)
+        5945053541      dTLB-loads:u                                                  (26.65%)
+           6995293      dTLB-load-misses:u        #    0.12% of all dTLB cache hits   (26.65%)
+          88699542      LLC-loads:u                                                   (26.65%)
+          34164394      LLC-load-misses:u         #   38.52% of all LL-cache hits     (26.65%)
+           1093377      LLC-stores:u                                                  (13.32%)
+
+       3.062660384 seconds time elapsed
+
+       2.974536000 seconds user
+       0.088075000 seconds sys
+
+
+
+ Performance counter stats for 'taskset -c 1-8 numactl -a ./2mm/2mm.split-0-2.polymer.seq.exe':
+
+        9776319385      cycles:u                                                      (19.97%)
+       11444611228      instructions:u            #    1.17  insn per cycle           (26.73%)
+         422705230      branches:u                                                    (33.50%)
+           3093558      branch-misses:u           #    0.73% of all branches          (33.54%)
+         121495297      cache-references:u                                            (33.54%)
+           8572939      cache-misses:u            #    7.056 % of all cache refs      (33.51%)
+          80929676      bus-cycles:u                                                  (26.62%)
+        6617545961      L1-dcache-loads:u                                             (26.58%)
+        2505981354      L1-dcache-load-misses:u   #   37.87% of all L1-dcache hits    (26.58%)
+        3322026382      L1-dcache-stores:u                                            (26.59%)
+        6645374386      dTLB-loads:u                                                  (26.59%)
+            242152      dTLB-load-misses:u        #    0.00% of all dTLB cache hits   (26.59%)
+          30776332      LLC-loads:u                                                   (26.59%)
+           5070531      LLC-load-misses:u         #   16.48% of all LL-cache hits     (26.59%)
+              7906      LLC-stores:u                                                  (13.29%)
+
+       3.310579830 seconds time elapsed
+
+       3.238468000 seconds user
+       0.072054000 seconds sys
+
+
+
+ Performance counter stats for 'taskset -c 1-8 numactl -a ./3mm/3mm.nosplit.polymer.seq.exe':
+
+       19123404026      cycles:u                                                      (19.90%)
+       32962470262      instructions:u            #    1.72  insn per cycle           (26.58%)
+        3852809207      branches:u                                                    (33.25%)
+           6781852      branch-misses:u           #    0.18% of all branches          (33.31%)
+         186708541      cache-references:u                                            (33.37%)
+          44559235      cache-misses:u            #   23.866 % of all cache refs      (33.37%)
+         159515899      bus-cycles:u                                                  (26.70%)
+       14285965535      L1-dcache-loads:u                                             (26.70%)
+         331608359      L1-dcache-load-misses:u   #    2.32% of all L1-dcache hits    (26.70%)
+        5499824128      L1-dcache-stores:u                                            (26.70%)
+       14247219600      dTLB-loads:u                                                  (26.70%)
+          15319355      dTLB-load-misses:u        #    0.11% of all dTLB cache hits   (26.70%)
+         129431306      LLC-loads:u                                                   (26.70%)
+          41185427      LLC-load-misses:u         #   31.82% of all LL-cache hits     (26.64%)
+            663071      LLC-stores:u                                                  (13.23%)
+
+       6.472810333 seconds time elapsed
+
+       6.360567000 seconds user
+       0.112009000 seconds sys
+
+
+
+ Performance counter stats for 'taskset -c 1-8 numactl -a ./3mm/3mm.split-0-1-2.polymer.seq.exe':
+
+       15564116608      cycles:u                                                      (19.98%)
+       19019398382      instructions:u            #    1.22  insn per cycle           (26.65%)
+        1178041257      branches:u                                                    (33.32%)
+           3287415      branch-misses:u           #    0.28% of all branches          (33.32%)
+         200157083      cache-references:u                                            (33.36%)
+          24562436      cache-misses:u            #   12.272 % of all cache refs      (33.34%)
+         131404086      bus-cycles:u                                                  (26.67%)
+       10946680403      L1-dcache-loads:u                                             (26.67%)
+        3835952260      L1-dcache-load-misses:u   #   35.04% of all L1-dcache hits    (26.67%)
+        5498304285      L1-dcache-stores:u                                            (26.67%)
+       10936626318      dTLB-loads:u                                                  (26.67%)
+            290631      dTLB-load-misses:u        #    0.00% of all dTLB cache hits   (26.67%)
+          52467083      LLC-loads:u                                                   (26.67%)
+          12957592      LLC-load-misses:u         #   24.70% of all LL-cache hits     (26.67%)
+            527765      LLC-stores:u                                                  (13.30%)
+
+       5.339178227 seconds time elapsed
+
+       5.247008000 seconds user
+       0.091982000 seconds sys
+
+
+
+ Performance counter stats for 'taskset -c 1-8 numactl -a ./correlation/correlation.nosplit.polymer.seq.exe':
+
+       10504045526      cycles:u                                                      (19.93%)
+       17658583232      instructions:u            #    1.68  insn per cycle           (26.66%)
+        2113679910      branches:u                                                    (33.38%)
+          10712742      branch-misses:u           #    0.51% of all branches          (33.49%)
+         113098646      cache-references:u                                            (33.61%)
+          19596026      cache-misses:u            #   17.326 % of all cache refs      (33.63%)
+          87132820      bus-cycles:u                                                  (26.90%)
+        6944936274      L1-dcache-loads:u                                             (26.83%)
+         161395062      L1-dcache-load-misses:u   #    2.32% of all L1-dcache hits    (26.72%)
+        2699984907      L1-dcache-stores:u                                            (26.60%)
+        7049653027      dTLB-loads:u                                                  (26.49%)
+          20135594      dTLB-load-misses:u        #    0.29% of all dTLB cache hits   (26.45%)
+         106908089      LLC-loads:u                                                   (26.45%)
+          14300226      LLC-load-misses:u         #   13.38% of all LL-cache hits     (26.45%)
+            489667      LLC-stores:u                                                  (13.23%)
+
+       3.569230774 seconds time elapsed
+
+       3.505106000 seconds user
+       0.064020000 seconds sys
+
+
+
+ Performance counter stats for 'taskset -c 1-8 numactl -a ./correlation/correlation.split-8.polymer.seq.exe':
+
+        7099216507      cycles:u                                                      (19.91%)
+        9503124300      instructions:u            #    1.34  insn per cycle           (26.65%)
+         430190220      branches:u                                                    (33.40%)
+           5903487      branch-misses:u           #    1.37% of all branches          (33.56%)
+          96550500      cache-references:u                                            (33.73%)
+          13240952      cache-misses:u            #   13.714 % of all cache refs      (33.73%)
+          58813933      bus-cycles:u                                                  (26.99%)
+        5135348969      L1-dcache-loads:u                                             (26.94%)
+        1699308304      L1-dcache-load-misses:u   #   33.09% of all L1-dcache hits    (26.78%)
+        2566908333      L1-dcache-stores:u                                            (26.61%)
+        5265801401      dTLB-loads:u                                                  (26.45%)
+            696230      dTLB-load-misses:u        #    0.01% of all dTLB cache hits   (26.33%)
+          28096223      LLC-loads:u                                                   (26.33%)
+           4475809      LLC-load-misses:u         #   15.93% of all LL-cache hits     (26.33%)
+            536865      LLC-stores:u                                                  (13.16%)
+
+       2.431321288 seconds time elapsed
+
+       2.375324000 seconds user
+       0.055984000 seconds sys
+
+
+
+ Performance counter stats for 'taskset -c 1-8 numactl -a ./covariance/covariance.nosplit.polymer.seq.exe':
+
+       10446328806      cycles:u                                                      (19.96%)
+       17237631785      instructions:u            #    1.65  insn per cycle           (26.70%)
+        2060188451      branches:u                                                    (33.45%)
+            844391      branch-misses:u           #    0.04% of all branches          (33.56%)
+         111424349      cache-references:u                                            (33.67%)
+          18056934      cache-misses:u            #   16.206 % of all cache refs      (33.62%)
+          87096223      bus-cycles:u                                                  (26.76%)
+        7061043618      L1-dcache-loads:u                                             (26.65%)
+         160080742      L1-dcache-load-misses:u   #    2.27% of all L1-dcache hits    (26.54%)
+        2740977600      L1-dcache-stores:u                                            (26.53%)
+        7161238418      dTLB-loads:u                                                  (26.53%)
+          19387793      dTLB-load-misses:u        #    0.27% of all dTLB cache hits   (26.53%)
+         105005297      LLC-loads:u                                                   (26.53%)
+          14023792      LLC-load-misses:u         #   13.36% of all LL-cache hits     (26.53%)
+           1380670      LLC-stores:u                                                  (13.26%)
+
+       3.559065889 seconds time elapsed
+
+       3.494983000 seconds user
+       0.063981000 seconds sys
+
+
+
+ Performance counter stats for 'taskset -c 1-8 numactl -a ./covariance/covariance.split-0.polymer.seq.exe':
+
+        7060789352      cycles:u                                                      (19.86%)
+        9300551639      instructions:u            #    1.32  insn per cycle           (26.64%)
+         433610344      branches:u                                                    (33.41%)
+           5809054      branch-misses:u           #    1.34% of all branches          (33.58%)
+          96858830      cache-references:u                                            (33.74%)
+          12174458      cache-misses:u            #   12.569 % of all cache refs      (33.87%)
+          58705977      bus-cycles:u                                                  (26.94%)
+        5184064762      L1-dcache-loads:u                                             (26.77%)
+        1731207379      L1-dcache-load-misses:u   #   33.39% of all L1-dcache hits    (26.61%)
+        2633273665      L1-dcache-stores:u                                            (26.44%)
+        5337168856      dTLB-loads:u                                                  (26.43%)
+            476348      dTLB-load-misses:u        #    0.01% of all dTLB cache hits   (26.43%)
+          28352788      LLC-loads:u                                                   (26.43%)
+           4375921      LLC-load-misses:u         #   15.43% of all LL-cache hits     (26.43%)
+           1349732      LLC-stores:u                                                  (13.22%)
+
+       2.421723458 seconds time elapsed
+
+       2.369656000 seconds user
+       0.052036000 seconds sys
+
+
+
+ Performance counter stats for 'taskset -c 1-8 numactl -a ./gramschmidt/gramschmidt.nosplit.polymer.seq.exe':
+
+       33590898808      cycles:u                                                      (20.00%)
+       24920918025      instructions:u            #    0.74  insn per cycle           (26.69%)
+        2761520333      branches:u                                                    (33.37%)
+           1202862      branch-misses:u           #    0.04% of all branches          (33.41%)
+        1495566892      cache-references:u                                            (33.44%)
+          82400076      cache-misses:u            #    5.510 % of all cache refs      (33.44%)
+         279533413      bus-cycles:u                                                  (26.72%)
+       10041093589      L1-dcache-loads:u                                             (26.68%)
+        3161743583      L1-dcache-load-misses:u   #   31.49% of all L1-dcache hits    (26.65%)
+        3553288583      L1-dcache-stores:u                                            (26.61%)
+       10070988131      dTLB-loads:u                                                  (26.61%)
+         860436969      dTLB-load-misses:u        #    8.54% of all dTLB cache hits   (26.61%)
+        1435989195      LLC-loads:u                                                   (26.61%)
+          80356289      LLC-load-misses:u         #    5.60% of all LL-cache hits     (26.61%)
+          14719823      LLC-stores:u                                                  (13.30%)
+
+      11.306023944 seconds time elapsed
+
+      11.229801000 seconds user
+       0.076012000 seconds sys
+
+
+
+ Performance counter stats for 'taskset -c 1-8 numactl -a ./gramschmidt/gramschmidt.split-0.polymer.seq.exe':
+
+       32043487078      cycles:u                                                      (19.95%)
+       24923564305      instructions:u            #    0.78  insn per cycle           (26.63%)
+        2759996026      branches:u                                                    (33.31%)
+           1307320      branch-misses:u           #    0.05% of all branches          (33.35%)
+        1469275878      cache-references:u                                            (33.39%)
+          78737812      cache-misses:u            #    5.359 % of all cache refs      (33.42%)
+         266460932      bus-cycles:u                                                  (26.74%)
+        9839060560      L1-dcache-loads:u                                             (26.74%)
+        3161325025      L1-dcache-load-misses:u   #   32.13% of all L1-dcache hits    (26.73%)
+        3543459461      L1-dcache-stores:u                                            (26.69%)
+        9842166305      dTLB-loads:u                                                  (26.65%)
+         859375142      dTLB-load-misses:u        #    8.73% of all dTLB cache hits   (26.62%)
+        1407433834      LLC-loads:u                                                   (26.59%)
+          77292670      LLC-load-misses:u         #    5.49% of all LL-cache hits     (26.59%)
+          17111362      LLC-stores:u                                                  (13.29%)
+
+      10.771971496 seconds time elapsed
+
+      10.691765000 seconds user
+       0.079998000 seconds sys
+
+

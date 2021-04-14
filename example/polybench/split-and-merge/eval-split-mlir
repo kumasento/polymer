@@ -32,6 +32,19 @@ export C_INCLUDE_PATH="${LLVM_DIR}/build/projects/openmp/runtime/src"
 export LD_LIBRARY_PATH="${LLVM_DIR}/build/lib:${BUILD_DIR}/pluto/lib:${LD_LIBRARY_PATH:-""}"
 
 # -----------------------------  Compile  -------------------------------------
+
+# Get the label for split-ids.
+function get_label() {
+  local split_ids=("$@")
+  local label
+  if [ "${#split_ids[@]}" -eq 0 ]; then
+    label="nosplit"
+  else
+    label="split-$( IFS="-"; echo "${split_ids[*]}" )"
+  fi
+  echo "${label}"
+}
+
 function compile_mlir() {
   local src_file="$1"
   local dst_file="${src_file%.c}.mlir"
@@ -58,8 +71,9 @@ function polymer_opt() {
   local all_args=("$@")
   local src_file="$1"
   local mode="${2:-"seq"}"
-  local dst_file="${src_file%.splittable.mlir}.polymer.${mode}.mlir"
   local split_ids=("${all_args[@]:2}")
+  local label="$(get_label "${split_ids[@]}")"
+  local dst_file="${src_file%.splittable.mlir}.${label}.polymer.${mode}.mlir"
 
   local polymer_options=()
   for id in "${split_ids[@]}"; do
@@ -92,11 +106,8 @@ function compile() {
     mlir-opt -lower-affine -convert-scf-to-std -canonicalize -convert-std-to-llvm "${src_file}" |\
       mlir-translate -mlir-to-llvmir > "${llvm_file}"
   else
-    echo $src_file
-    # -mem2reg -detect-reduction -mem2reg -canonicalize -affine-parallelize -lower-affine -convert-scf-to-openmp -convert-scf-to-std -convert-openmp-to-llvm
     mlir-opt -mem2reg -detect-reduction -mem2reg -canonicalize -affine-parallelize -lower-affine -convert-scf-to-openmp -convert-scf-to-std -convert-openmp-to-llvm \
       "${src_file}" | mlir-translate -mlir-to-llvmir > "${llvm_file}"
-
     clang_flags+=(-fopenmp)
   fi
 
@@ -127,8 +138,15 @@ function try_rebuild() {
 }
 
 ALL_ARGS=("$@")
-TARGET="${1}/${1}.origin.c"
+TARGET="${1}/${1}.c"
 SPLIT_IDS=("${ALL_ARGS[@]:1}")
+
+LABEL="$(get_label "${SPLIT_IDS[@]}")"
+
+echo ""
+echo "    TARGET: ${TARGET}"
+echo "    SPLIT_IDS: ${SPLIT_IDS[@]}"
+echo ""
 
 try_rebuild
 
@@ -138,12 +156,12 @@ compile_mlir "${TARGET}" "debug"
 annotate_splittable "${TARGET%.c}.mlir"
 polymer_opt "${TARGET%.c}.splittable.mlir" "seq" "${SPLIT_IDS[@]}"
 compile "${TARGET%.c}.mlir"
-compile "${TARGET%.c}.polymer.seq.mlir"
+compile "${TARGET%.c}.${LABEL}.polymer.seq.mlir"
 
 "${TARGET%.c}.exe" > "${TARGET%.c}.out" 2>&1
-"${TARGET%.c}.polymer.seq.exe"> "${TARGET%.c}.polymer.out" 2>&1 
+"${TARGET%.c}.${LABEL}.polymer.seq.exe"> "${TARGET%.c}.${LABEL}.polymer.out" 2>&1 
 
-diff "${TARGET%.c}.out" "${TARGET%.c}.polymer.out" >/dev/null 2>&1 || echo "Sanity check ERROR!"
+diff "${TARGET%.c}.out" "${TARGET%.c}.${LABEL}.polymer.out" >/dev/null 2>&1 || echo "Sanity check ERROR!"
 
 # Performance
 echo ">>> Evaluate performance ..."
@@ -151,17 +169,17 @@ compile_mlir "${TARGET}" "perf"
 annotate_splittable "${TARGET%.c}.mlir"
 polymer_opt "${TARGET%.c}.splittable.mlir" "seq" "${SPLIT_IDS[@]}"
 compile "${TARGET%.c}.mlir"
-compile "${TARGET%.c}.polymer.seq.mlir"
+compile "${TARGET%.c}.${LABEL}.polymer.seq.mlir"
 
 # run "${TARGET%.c}.exe" 5
-run "${TARGET%.c}.polymer.seq.exe" 5
+run "${TARGET%.c}.${LABEL}.polymer.seq.exe" 5
 
 echo ">>> Evaluate paralllel performance ..."
 
 compile_mlir "${TARGET}" "perf"
 annotate_splittable "${TARGET%.c}.mlir"
-polymer_opt "${TARGET%.c}.splittable.mlir" "parallel" "${SPLIT_IDS[@]}"
-compile "${TARGET%.c}.mlir" "parallel"
-compile "${TARGET%.c}.polymer.parallel.mlir" "parallel"
+polymer_opt "${TARGET%.c}.splittable.mlir" "par" "${SPLIT_IDS[@]}"
+compile "${TARGET%.c}.mlir" "par"
+compile "${TARGET%.c}.${LABEL}.polymer.par.mlir" "par"
 
-run "${TARGET%.c}.polymer.parallel.exe" 5 "1-8"
+run "${TARGET%.c}.${LABEL}.polymer.par.exe" 5 "1-8"

@@ -186,9 +186,9 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
         affine.store %cst, %arg6[%arg11, %arg12] : memref<?x1800xf64>
         affine.for %arg13 = 0 to %1 {
           %4 = affine.load %arg7[%arg11, %arg13] : memref<?x2200xf64>
-          %5 = mulf %arg4, %4 : f64
+          %5 = mulf %arg4, %4 {scop.splittable = 1 : index} : f64
           %6 = affine.load %arg8[%arg13, %arg12] : memref<?x1800xf64>
-          %7 = mulf %5, %6 : f64
+          %7 = mulf %5, %6 {scop.splittable = 0 : index} : f64
           %8 = affine.load %arg6[%arg11, %arg12] : memref<?x1800xf64>
           %9 = addf %8, %7 : f64
           affine.store %9, %arg6[%arg11, %arg12] : memref<?x1800xf64>
@@ -203,7 +203,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
         affine.for %arg13 = 0 to %0 {
           %6 = affine.load %arg6[%arg11, %arg13] : memref<?x1800xf64>
           %7 = affine.load %arg9[%arg13, %arg12] : memref<?x2400xf64>
-          %8 = mulf %6, %7 : f64
+          %8 = mulf %6, %7 {scop.splittable = 2 : index} : f64
           %9 = affine.load %arg10[%arg11, %arg12] : memref<?x2400xf64>
           %10 = addf %9, %8 : f64
           affine.store %10, %arg10[%arg11, %arg12] : memref<?x2400xf64>
@@ -281,3 +281,4 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     return
   }
 }
+
