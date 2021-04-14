@@ -1,12 +1,13 @@
-#map0 = affine_map<()[s0] -> ((s0 - 1) floordiv 32 + 1)>
-#map1 = affine_map<(d0) -> (d0 * 32)>
-#map2 = affine_map<(d0)[s0] -> (s0, d0 * 32 + 32)>
-#map3 = affine_map<()[s0, s1] -> ((s0 + s1 - 2) floordiv 32 + 1)>
-#map4 = affine_map<(d0)[s0] -> (0, (d0 * 32 - s0 + 1) ceildiv 32)>
-#map5 = affine_map<(d0)[s0] -> ((s0 - 1) floordiv 32 + 1, d0 + 1)>
+#map0 = affine_map<(d0) -> (d0 * 32)>
+#map1 = affine_map<(d0) -> (1600, d0 * 32 + 32)>
+#map2 = affine_map<(d0) -> (2400, d0 * 32 + 32)>
+#map3 = affine_map<(d0) -> (1800, d0 * 32 + 32)>
+#map4 = affine_map<(d0) -> (0, (d0 * 32 - 2199) ceildiv 32)>
+#map5 = affine_map<(d0) -> (50, d0 + 1)>
 #map6 = affine_map<(d0, d1) -> (d0 * 32 - d1 * 32)>
-#map7 = affine_map<(d0, d1)[s0] -> (s0, d0 * 32 - d1 * 32 + 32)>
-#set = affine_set<()[s0, s1, s2, s3] : (s0 - 1 >= 0, s1 - 1 >= 0, s2 - 1 >= 0, s3 - 1 >= 0)>
+#map7 = affine_map<(d0, d1) -> (2200, d0 * 32 - d1 * 32 + 32)>
+#map8 = affine_map<(d0) -> (0, (d0 * 32 - 1799) ceildiv 32)>
+#map9 = affine_map<(d0, d1) -> (1800, d0 * 32 - d1 * 32 + 32)>
 module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128", llvm.target_triple = "x86_64-unknown-linux-gnu"}  {
   llvm.mlir.global internal constant @str7("==END   DUMP_ARRAYS==\0A\00")
   llvm.mlir.global internal constant @str6("\0Aend   dump: %s\0A\00")
@@ -28,56 +29,6 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %c0_i64 = constant 0 : i64
     %true = constant true
     %false = constant false
-    %c0_i32 = constant 0 : i32
-    %0 = memref.alloca() : memref<2200xf64>
-    %1 = memref.cast %0 : memref<2200xf64> to memref<?xf64>
-    %2 = memref.alloca() : memref<2200xf64>
-    %3 = memref.cast %2 : memref<2200xf64> to memref<?xf64>
-    %4 = memref.alloca() : memref<1xf64>
-    %5 = memref.alloca() : memref<1xf64>
-    %6 = memref.alloc() : memref<1600x1800xf64>
-    %7 = memref.alloc() : memref<1600x2200xf64>
-    %8 = memref.alloc() : memref<2200x1800xf64>
-    %9 = memref.alloc() : memref<1800x2400xf64>
-    %10 = memref.alloc() : memref<1600x2400xf64>
-    %11 = memref.cast %4 : memref<1xf64> to memref<?xf64>
-    %12 = memref.cast %5 : memref<1xf64> to memref<?xf64>
-    %13 = memref.cast %7 : memref<1600x2200xf64> to memref<?x2200xf64>
-    %14 = memref.cast %8 : memref<2200x1800xf64> to memref<?x1800xf64>
-    %15 = memref.cast %9 : memref<1800x2400xf64> to memref<?x2400xf64>
-    %16 = memref.cast %10 : memref<1600x2400xf64> to memref<?x2400xf64>
-    call @init_array(%c1600_i32, %c1800_i32, %c2200_i32, %c2400_i32, %11, %12, %13, %14, %15, %16) : (i32, i32, i32, i32, memref<?xf64>, memref<?xf64>, memref<?x2200xf64>, memref<?x1800xf64>, memref<?x2400xf64>, memref<?x2400xf64>) -> ()
-    call @polybench_timer_start() : () -> ()
-    %17 = affine.load %4[0] : memref<1xf64>
-    %18 = affine.load %5[0] : memref<1xf64>
-    %19 = memref.cast %6 : memref<1600x1800xf64> to memref<?x1800xf64>
-    call @kernel_2mm_opt(%c1600_i32, %c1800_i32, %c2200_i32, %c2400_i32, %17, %18, %19, %13, %14, %15, %16, %1, %3) : (i32, i32, i32, i32, f64, f64, memref<?x1800xf64>, memref<?x2200xf64>, memref<?x1800xf64>, memref<?x2400xf64>, memref<?x2400xf64>, memref<?xf64>, memref<?xf64>) -> ()
-    call @polybench_timer_stop() : () -> ()
-    call @polybench_timer_print() : () -> ()
-    %20 = cmpi sgt, %arg0, %c42_i32 : i32
-    %21 = scf.if %20 -> (i1) {
-      %22 = llvm.getelementptr %arg1[%c0_i64] : (!llvm.ptr<ptr<i8>>, i64) -> !llvm.ptr<ptr<i8>>
-      %23 = llvm.load %22 : !llvm.ptr<ptr<i8>>
-      %24 = llvm.mlir.addressof @str0 : !llvm.ptr<array<1 x i8>>
-      %25 = llvm.getelementptr %24[%c0_i64, %c0_i64] : (!llvm.ptr<array<1 x i8>>, i64, i64) -> !llvm.ptr<i8>
-      %26 = llvm.call @strcmp(%23, %25) : (!llvm.ptr<i8>, !llvm.ptr<i8>) -> i32
-      %27 = trunci %26 : i32 to i1
-      %28 = xor %27, %true : i1
-      scf.yield %28 : i1
-    } else {
-      scf.yield %false : i1
-    }
-    scf.if %21 {
-      call @print_array(%c1600_i32, %c2400_i32, %16) : (i32, i32, memref<?x2400xf64>) -> ()
-    }
-    memref.dealloc %6 : memref<1600x1800xf64>
-    memref.dealloc %7 : memref<1600x2200xf64>
-    memref.dealloc %8 : memref<2200x1800xf64>
-    memref.dealloc %9 : memref<1800x2400xf64>
-    memref.dealloc %10 : memref<1600x2400xf64>
-    return %c0_i32 : i32
-  }
-  func private @init_array(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32, %arg4: memref<?xf64>, %arg5: memref<?xf64>, %arg6: memref<?x2200xf64>, %arg7: memref<?x1800xf64>, %arg8: memref<?x2400xf64>, %arg9: memref<?x2400xf64>) {
     %cst = constant 1.500000e+00 : f64
     %cst_0 = constant 1.200000e+00 : f64
     %c3_i32 = constant 3 : i32
@@ -86,133 +37,201 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %c0_i32 = constant 0 : i32
     %c0 = constant 0 : index
     %c1 = constant 1 : index
-    affine.store %cst, %arg4[0] : memref<?xf64>
-    affine.store %cst_0, %arg5[0] : memref<?xf64>
-    %0:2 = scf.while (%arg10 = %c0_i32) : (i32) -> (i32, i32) {
-      %4 = cmpi slt, %arg10, %arg0 : i32
-      scf.condition(%4) %c0_i32, %arg10 : i32, i32
+    %c1800 = constant 1800 : index
+    %cst_1 = constant 0.000000e+00 : f64
+    %0 = memref.alloca() : memref<2200xf64>
+    %1 = memref.alloca() : memref<1xf64>
+    %2 = memref.alloca() : memref<1xf64>
+    %3 = memref.alloc() : memref<1600x1800xf64>
+    %4 = memref.alloc() : memref<1600x2200xf64>
+    %5 = memref.alloc() : memref<2200x1800xf64>
+    %6 = memref.alloc() : memref<1800x2400xf64>
+    %7 = memref.alloc() : memref<1600x2400xf64>
+    %8 = memref.cast %7 : memref<1600x2400xf64> to memref<?x2400xf64>
+    affine.store %cst, %1[0] : memref<1xf64>
+    affine.store %cst_0, %2[0] : memref<1xf64>
+    %9:2 = scf.while (%arg2 = %c0_i32) : (i32) -> (i32, i32) {
+      %17 = cmpi slt, %arg2, %c1600_i32 : i32
+      scf.condition(%17) %c0_i32, %arg2 : i32, i32
     } do {
-    ^bb0(%arg10: i32, %arg11: i32):  // no predecessors
-      %4 = index_cast %arg11 : i32 to index
-      %5 = scf.while (%arg12 = %c0_i32) : (i32) -> i32 {
-        %7 = cmpi slt, %arg12, %arg2 : i32
-        scf.condition(%7) %arg12 : i32
+    ^bb0(%arg2: i32, %arg3: i32):  // no predecessors
+      %17 = index_cast %arg3 : i32 to index
+      %18 = scf.while (%arg4 = %c0_i32) : (i32) -> i32 {
+        %20 = cmpi slt, %arg4, %c2200_i32 : i32
+        scf.condition(%20) %arg4 : i32
       } do {
-      ^bb0(%arg12: i32):  // no predecessors
-        %7 = index_cast %arg12 : i32 to index
-        %8 = muli %arg11, %arg12 : i32
-        %9 = addi %8, %c1_i32 : i32
-        %10 = remi_signed %9, %arg0 : i32
-        %11 = sitofp %10 : i32 to f64
-        %12 = sitofp %arg0 : i32 to f64
-        %13 = divf %11, %12 : f64
-        memref.store %13, %arg6[%4, %7] : memref<?x2200xf64>
-        %14 = addi %arg12, %c1_i32 : i32
-        scf.yield %14 : i32
+      ^bb0(%arg4: i32):  // no predecessors
+        %20 = index_cast %arg4 : i32 to index
+        %21 = muli %arg3, %arg4 : i32
+        %22 = addi %21, %c1_i32 : i32
+        %23 = remi_signed %22, %c1600_i32 : i32
+        %24 = sitofp %23 : i32 to f64
+        %25 = sitofp %c1600_i32 : i32 to f64
+        %26 = divf %24, %25 : f64
+        memref.store %26, %4[%17, %20] : memref<1600x2200xf64>
+        %27 = addi %arg4, %c1_i32 : i32
+        scf.yield %27 : i32
       }
-      %6 = addi %arg11, %c1_i32 : i32
-      scf.yield %6 : i32
+      %19 = addi %arg3, %c1_i32 : i32
+      scf.yield %19 : i32
     }
-    %1:2 = scf.while (%arg10 = %0#0) : (i32) -> (i32, i32) {
-      %4 = cmpi slt, %arg10, %arg2 : i32
-      scf.condition(%4) %c0_i32, %arg10 : i32, i32
+    %10:2 = scf.while (%arg2 = %9#0) : (i32) -> (i32, i32) {
+      %17 = cmpi slt, %arg2, %c2200_i32 : i32
+      scf.condition(%17) %c0_i32, %arg2 : i32, i32
     } do {
-    ^bb0(%arg10: i32, %arg11: i32):  // no predecessors
-      %4 = index_cast %arg11 : i32 to index
-      %5 = index_cast %arg1 : i32 to index
-      %6 = scf.for %arg12 = %c0 to %5 step %c1 iter_args(%arg13 = %c0_i32) -> (i32) {
-        %8 = index_cast %arg13 : i32 to index
-        %9 = addi %arg13, %c1_i32 : i32
-        %10 = muli %arg11, %9 : i32
-        %11 = remi_signed %10, %arg1 : i32
-        %12 = sitofp %11 : i32 to f64
-        %13 = sitofp %arg1 : i32 to f64
-        %14 = divf %12, %13 : f64
-        memref.store %14, %arg7[%4, %8] : memref<?x1800xf64>
-        scf.yield %9 : i32
+    ^bb0(%arg2: i32, %arg3: i32):  // no predecessors
+      %17 = index_cast %arg3 : i32 to index
+      %18 = scf.for %arg4 = %c0 to %c1800 step %c1 iter_args(%arg5 = %c0_i32) -> (i32) {
+        %20 = index_cast %arg5 : i32 to index
+        %21 = addi %arg5, %c1_i32 : i32
+        %22 = muli %arg3, %21 : i32
+        %23 = remi_signed %22, %c1800_i32 : i32
+        %24 = sitofp %23 : i32 to f64
+        %25 = sitofp %c1800_i32 : i32 to f64
+        %26 = divf %24, %25 : f64
+        memref.store %26, %5[%17, %20] : memref<2200x1800xf64>
+        scf.yield %21 : i32
       }
-      %7 = addi %arg11, %c1_i32 : i32
-      scf.yield %7 : i32
+      %19 = addi %arg3, %c1_i32 : i32
+      scf.yield %19 : i32
     }
-    %2:2 = scf.while (%arg10 = %1#0) : (i32) -> (i32, i32) {
-      %4 = cmpi slt, %arg10, %arg1 : i32
-      scf.condition(%4) %c0_i32, %arg10 : i32, i32
+    %11:2 = scf.while (%arg2 = %10#0) : (i32) -> (i32, i32) {
+      %17 = cmpi slt, %arg2, %c1800_i32 : i32
+      scf.condition(%17) %c0_i32, %arg2 : i32, i32
     } do {
-    ^bb0(%arg10: i32, %arg11: i32):  // no predecessors
-      %4 = index_cast %arg11 : i32 to index
-      %5 = scf.while (%arg12 = %c0_i32) : (i32) -> i32 {
-        %7 = cmpi slt, %arg12, %arg3 : i32
-        scf.condition(%7) %arg12 : i32
+    ^bb0(%arg2: i32, %arg3: i32):  // no predecessors
+      %17 = index_cast %arg3 : i32 to index
+      %18 = scf.while (%arg4 = %c0_i32) : (i32) -> i32 {
+        %20 = cmpi slt, %arg4, %c2400_i32 : i32
+        scf.condition(%20) %arg4 : i32
       } do {
-      ^bb0(%arg12: i32):  // no predecessors
-        %7 = index_cast %arg12 : i32 to index
-        %8 = addi %arg12, %c3_i32 : i32
-        %9 = muli %arg11, %8 : i32
-        %10 = addi %9, %c1_i32 : i32
-        %11 = remi_signed %10, %arg3 : i32
-        %12 = sitofp %11 : i32 to f64
-        %13 = sitofp %arg3 : i32 to f64
-        %14 = divf %12, %13 : f64
-        memref.store %14, %arg8[%4, %7] : memref<?x2400xf64>
-        %15 = addi %arg12, %c1_i32 : i32
-        scf.yield %15 : i32
+      ^bb0(%arg4: i32):  // no predecessors
+        %20 = index_cast %arg4 : i32 to index
+        %21 = addi %arg4, %c3_i32 : i32
+        %22 = muli %arg3, %21 : i32
+        %23 = addi %22, %c1_i32 : i32
+        %24 = remi_signed %23, %c2400_i32 : i32
+        %25 = sitofp %24 : i32 to f64
+        %26 = sitofp %c2400_i32 : i32 to f64
+        %27 = divf %25, %26 : f64
+        memref.store %27, %6[%17, %20] : memref<1800x2400xf64>
+        %28 = addi %arg4, %c1_i32 : i32
+        scf.yield %28 : i32
       }
-      %6 = addi %arg11, %c1_i32 : i32
-      scf.yield %6 : i32
+      %19 = addi %arg3, %c1_i32 : i32
+      scf.yield %19 : i32
     }
-    %3 = scf.while (%arg10 = %2#0) : (i32) -> i32 {
-      %4 = cmpi slt, %arg10, %arg0 : i32
-      scf.condition(%4) %arg10 : i32
+    %12 = scf.while (%arg2 = %11#0) : (i32) -> i32 {
+      %17 = cmpi slt, %arg2, %c1600_i32 : i32
+      scf.condition(%17) %arg2 : i32
     } do {
-    ^bb0(%arg10: i32):  // no predecessors
-      %4 = index_cast %arg10 : i32 to index
-      %5 = scf.while (%arg11 = %c0_i32) : (i32) -> i32 {
-        %7 = cmpi slt, %arg11, %arg3 : i32
-        scf.condition(%7) %arg11 : i32
+    ^bb0(%arg2: i32):  // no predecessors
+      %17 = index_cast %arg2 : i32 to index
+      %18 = scf.while (%arg3 = %c0_i32) : (i32) -> i32 {
+        %20 = cmpi slt, %arg3, %c2400_i32 : i32
+        scf.condition(%20) %arg3 : i32
       } do {
-      ^bb0(%arg11: i32):  // no predecessors
-        %7 = index_cast %arg11 : i32 to index
-        %8 = addi %arg11, %c2_i32 : i32
-        %9 = muli %arg10, %8 : i32
-        %10 = remi_signed %9, %arg2 : i32
-        %11 = sitofp %10 : i32 to f64
-        %12 = sitofp %arg2 : i32 to f64
-        %13 = divf %11, %12 : f64
-        memref.store %13, %arg9[%4, %7] : memref<?x2400xf64>
-        %14 = addi %arg11, %c1_i32 : i32
-        scf.yield %14 : i32
+      ^bb0(%arg3: i32):  // no predecessors
+        %20 = index_cast %arg3 : i32 to index
+        %21 = addi %arg3, %c2_i32 : i32
+        %22 = muli %arg2, %21 : i32
+        %23 = remi_signed %22, %c2200_i32 : i32
+        %24 = sitofp %23 : i32 to f64
+        %25 = sitofp %c2200_i32 : i32 to f64
+        %26 = divf %24, %25 : f64
+        memref.store %26, %7[%17, %20] : memref<1600x2400xf64>
+        %27 = addi %arg3, %c1_i32 : i32
+        scf.yield %27 : i32
       }
-      %6 = addi %arg10, %c1_i32 : i32
-      scf.yield %6 : i32
+      %19 = addi %arg2, %c1_i32 : i32
+      scf.yield %19 : i32
     }
-    return
+    call @polybench_timer_start() : () -> ()
+    %13 = affine.load %1[0] : memref<1xf64>
+    %14 = affine.load %2[0] : memref<1xf64>
+    affine.for %arg2 = 0 to 50 {
+      affine.for %arg3 = 0 to 75 {
+        affine.for %arg4 = #map0(%arg2) to min #map1(%arg2) {
+          affine.for %arg5 = #map0(%arg3) to min #map2(%arg3) {
+            %17 = affine.load %7[%arg4, %arg5] : memref<1600x2400xf64>
+            %18 = mulf %17, %14 : f64
+            affine.store %18, %7[%arg4, %arg5] : memref<1600x2400xf64>
+          }
+        }
+      }
+    } {scop.parallelizable}
+    affine.for %arg2 = 0 to 50 {
+      affine.for %arg3 = 0 to 57 {
+        affine.for %arg4 = #map0(%arg2) to min #map1(%arg2) {
+          affine.for %arg5 = #map0(%arg3) to min #map3(%arg3) {
+            affine.store %cst_1, %3[%arg4, %arg5] : memref<1600x1800xf64>
+          }
+        }
+      }
+    } {scop.parallelizable}
+    affine.for %arg2 = 0 to 119 {
+      affine.for %arg3 = max #map4(%arg2) to min #map5(%arg2) {
+        affine.for %arg4 = #map6(%arg2, %arg3) to min #map7(%arg2, %arg3) {
+          affine.for %arg5 = #map0(%arg3) to min #map1(%arg3) {
+            affine.for %arg6 = 0 to 1800 {
+              %17 = affine.load %4[%arg5, %arg4] : memref<1600x2200xf64>
+              %18 = mulf %13, %17 {scop.splittable = 1 : index} : f64
+              %19 = affine.load %5[%arg4, %arg6] : memref<2200x1800xf64>
+              %20 = mulf %18, %19 {scop.splittable = 0 : index} : f64
+              affine.store %20, %0[%arg4] : memref<2200xf64>
+              %21 = affine.load %3[%arg5, %arg6] : memref<1600x1800xf64>
+              %22 = affine.load %0[%arg4] : memref<2200xf64>
+              %23 = addf %21, %22 : f64
+              affine.store %23, %3[%arg5, %arg6] : memref<1600x1800xf64>
+            }
+          }
+        }
+      } {scop.parallelizable}
+    }
+    affine.for %arg2 = 0 to 107 {
+      affine.for %arg3 = max #map8(%arg2) to min #map5(%arg2) {
+        affine.for %arg4 = #map6(%arg2, %arg3) to min #map9(%arg2, %arg3) {
+          affine.for %arg5 = #map0(%arg3) to min #map1(%arg3) {
+            affine.for %arg6 = 0 to 2400 {
+              %17 = affine.load %3[%arg5, %arg4] : memref<1600x1800xf64>
+              %18 = affine.load %6[%arg4, %arg6] : memref<1800x2400xf64>
+              %19 = mulf %17, %18 {scop.splittable = 2 : index} : f64
+              affine.store %19, %0[%arg4] : memref<2200xf64>
+              %20 = affine.load %7[%arg5, %arg6] : memref<1600x2400xf64>
+              %21 = affine.load %0[%arg4] : memref<2200xf64>
+              %22 = addf %20, %21 : f64
+              affine.store %22, %7[%arg5, %arg6] : memref<1600x2400xf64>
+            }
+          }
+        }
+      } {scop.parallelizable}
+    }
+    call @polybench_timer_stop() : () -> ()
+    call @polybench_timer_print() : () -> ()
+    %15 = cmpi sgt, %arg0, %c42_i32 : i32
+    %16 = scf.if %15 -> (i1) {
+      %17 = llvm.getelementptr %arg1[%c0_i64] : (!llvm.ptr<ptr<i8>>, i64) -> !llvm.ptr<ptr<i8>>
+      %18 = llvm.load %17 : !llvm.ptr<ptr<i8>>
+      %19 = llvm.mlir.addressof @str0 : !llvm.ptr<array<1 x i8>>
+      %20 = llvm.getelementptr %19[%c0_i64, %c0_i64] : (!llvm.ptr<array<1 x i8>>, i64, i64) -> !llvm.ptr<i8>
+      %21 = llvm.call @strcmp(%18, %20) : (!llvm.ptr<i8>, !llvm.ptr<i8>) -> i32
+      %22 = trunci %21 : i32 to i1
+      %23 = xor %22, %true : i1
+      scf.yield %23 : i1
+    } else {
+      scf.yield %false : i1
+    }
+    scf.if %16 {
+      call @print_array(%c1600_i32, %c2400_i32, %8) : (i32, i32, memref<?x2400xf64>) -> ()
+    }
+    memref.dealloc %3 : memref<1600x1800xf64>
+    memref.dealloc %4 : memref<1600x2200xf64>
+    memref.dealloc %5 : memref<2200x1800xf64>
+    memref.dealloc %6 : memref<1800x2400xf64>
+    memref.dealloc %7 : memref<1600x2400xf64>
+    return %c0_i32 : i32
   }
   func private @polybench_timer_start()
-  func private @kernel_2mm(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32, %arg4: f64, %arg5: f64, %arg6: memref<?x1800xf64>, %arg7: memref<?x2200xf64>, %arg8: memref<?x1800xf64>, %arg9: memref<?x2400xf64>, %arg10: memref<?x2400xf64>, %arg11: memref<?xf64>, %arg12: memref<?xf64>) {
-    %0 = index_cast %arg1 : i32 to index
-    %1 = index_cast %arg2 : i32 to index
-    %2 = index_cast %arg3 : i32 to index
-    %3 = index_cast %arg0 : i32 to index
-    affine.for %arg13 = 0 to %3 {
-      affine.for %arg14 = 0 to %0 {
-        call @S0(%arg6, %arg13, %arg14) : (memref<?x1800xf64>, index, index) -> ()
-        affine.for %arg15 = 0 to %1 {
-          call @S1(%arg12, %arg15, %arg8, %arg14, %arg4, %arg7, %arg13) : (memref<?xf64>, index, memref<?x1800xf64>, index, f64, memref<?x2200xf64>, index) -> ()
-          call @S2(%arg6, %arg13, %arg14, %arg12, %arg15) : (memref<?x1800xf64>, index, index, memref<?xf64>, index) -> ()
-        }
-      }
-    }
-    affine.for %arg13 = 0 to %3 {
-      affine.for %arg14 = 0 to %2 {
-        call @S3(%arg10, %arg13, %arg14, %arg5) : (memref<?x2400xf64>, index, index, f64) -> ()
-        affine.for %arg15 = 0 to %0 {
-          call @S4(%arg12, %arg15, %arg9, %arg14, %arg6, %arg13) : (memref<?xf64>, index, memref<?x2400xf64>, index, memref<?x1800xf64>, index) -> ()
-          call @S5(%arg10, %arg13, %arg14, %arg12, %arg15) : (memref<?x2400xf64>, index, index, memref<?xf64>, index) -> ()
-        }
-      }
-    }
-    return
-  }
   func private @polybench_timer_stop()
   func private @polybench_timer_print()
   func private @S0(%arg0: memref<?x1800xf64>, %arg1: index, %arg2: index) attributes {scop.stmt} {
@@ -253,57 +272,6 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %1 = affine.load %arg3[symbol(%arg4)] : memref<?xf64>
     %2 = addf %0, %1 : f64
     affine.store %2, %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2400xf64>
-    return
-  }
-  func private @kernel_2mm_opt(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32, %arg4: f64, %arg5: f64, %arg6: memref<?x1800xf64>, %arg7: memref<?x2200xf64>, %arg8: memref<?x1800xf64>, %arg9: memref<?x2400xf64>, %arg10: memref<?x2400xf64>, %arg11: memref<?xf64>, %arg12: memref<?xf64>) {
-    %0 = index_cast %arg0 : i32 to index
-    %1 = index_cast %arg1 : i32 to index
-    %2 = index_cast %arg2 : i32 to index
-    %3 = index_cast %arg3 : i32 to index
-    affine.if #set()[%0, %1, %2, %3] {
-      affine.for %arg13 = 0 to #map0()[%0] {
-        affine.for %arg14 = 0 to #map0()[%3] {
-          affine.for %arg15 = #map1(%arg13) to min #map2(%arg13)[%0] {
-            affine.for %arg16 = #map1(%arg14) to min #map2(%arg14)[%3] {
-              call @S3(%arg10, %arg15, %arg16, %arg5) : (memref<?x2400xf64>, index, index, f64) -> ()
-            }
-          }
-        }
-      } {scop.parallelizable}
-      affine.for %arg13 = 0 to #map0()[%0] {
-        affine.for %arg14 = 0 to #map0()[%1] {
-          affine.for %arg15 = #map1(%arg13) to min #map2(%arg13)[%0] {
-            affine.for %arg16 = #map1(%arg14) to min #map2(%arg14)[%1] {
-              call @S0(%arg6, %arg15, %arg16) : (memref<?x1800xf64>, index, index) -> ()
-            }
-          }
-        }
-      } {scop.parallelizable}
-      affine.for %arg13 = 0 to #map3()[%0, %2] {
-        affine.for %arg14 = max #map4(%arg13)[%2] to min #map5(%arg13)[%0] {
-          affine.for %arg15 = #map6(%arg13, %arg14) to min #map7(%arg13, %arg14)[%2] {
-            affine.for %arg16 = #map1(%arg14) to min #map2(%arg14)[%0] {
-              affine.for %arg17 = 0 to %1 {
-                call @S1(%arg12, %arg15, %arg8, %arg17, %arg4, %arg7, %arg16) : (memref<?xf64>, index, memref<?x1800xf64>, index, f64, memref<?x2200xf64>, index) -> ()
-                call @S2(%arg6, %arg16, %arg17, %arg12, %arg15) : (memref<?x1800xf64>, index, index, memref<?xf64>, index) -> ()
-              }
-            }
-          }
-        } {scop.parallelizable}
-      }
-      affine.for %arg13 = 0 to #map3()[%0, %1] {
-        affine.for %arg14 = max #map4(%arg13)[%1] to min #map5(%arg13)[%0] {
-          affine.for %arg15 = #map6(%arg13, %arg14) to min #map7(%arg13, %arg14)[%1] {
-            affine.for %arg16 = #map1(%arg14) to min #map2(%arg14)[%0] {
-              affine.for %arg17 = 0 to %3 {
-                call @S4(%arg12, %arg15, %arg9, %arg17, %arg6, %arg16) : (memref<?xf64>, index, memref<?x2400xf64>, index, memref<?x1800xf64>, index) -> ()
-                call @S5(%arg10, %arg16, %arg17, %arg12, %arg15) : (memref<?x2400xf64>, index, index, memref<?xf64>, index) -> ()
-              }
-            }
-          }
-        } {scop.parallelizable}
-      }
-    }
     return
   }
   func private @print_array(%arg0: i32, %arg1: i32, %arg2: memref<?x2400xf64>) {

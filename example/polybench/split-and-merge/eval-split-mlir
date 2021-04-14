@@ -20,7 +20,7 @@ PLUTO_DIR="${DIR}/../../../pluto"
 # Compilation options.
 # -fno-vectorize -fno-slp-vectorize -fno-tree-vectorize -fno-unroll-loops
 CLANG_FLAGS=(-I "${LLVM_DIR}/clang/lib/Headers")
-POLYBENCH_FLAGS=(-I "${UTILITIES_DIR}" -I "${LLVM_DIR}/build/lib/clang/13.0.0/include/")
+POLYBENCH_FLAGS=(-I "${UTILITIES_DIR}" -I "${LLVM_DIR}/build/lib/clang/13.0.0/include/" -D POLYBENCH_NO_FLUSH_CACHE )
 LDFLAGS=(-L"${LLVM_DIR}/build/lib" -lm)
 
 # ----------------------------- Setup ENV -------------------------------------
@@ -73,8 +73,9 @@ function polymer_opt() {
   if [ "${mode}" = "seq" ]; then
     polymer_options+=(-pluto-opt)
   else
-    polymer_options+=(-pluto-opt="parallelize=1")
+    polymer_options+=(-pluto-opt="parallelize=1" -inline)
   fi
+  polymer_options+=(-canonicalize)
 
   polymer-opt "${polymer_options[@]}" "${src_file}" 2>/dev/null | tee "${dst_file}" &>/dev/null
 }
@@ -88,12 +89,12 @@ function compile() {
   clang_flags+=( -D POLYBENCH_TIME )
 
   if [ "${mode}" = "seq" ]; then
-    mlir-opt -inline -lower-affine -convert-scf-to-std -canonicalize -convert-std-to-llvm "${src_file}" |\
+    mlir-opt -lower-affine -convert-scf-to-std -canonicalize -convert-std-to-llvm "${src_file}" |\
       mlir-translate -mlir-to-llvmir > "${llvm_file}"
   else
     echo $src_file
     # -mem2reg -detect-reduction -mem2reg -canonicalize -affine-parallelize -lower-affine -convert-scf-to-openmp -convert-scf-to-std -convert-openmp-to-llvm
-    mlir-opt -inline -mem2reg -canonicalize -detect-reduction -mem2reg -canonicalize -affine-parallelize -lower-affine -convert-scf-to-openmp -convert-scf-to-std -convert-openmp-to-llvm \
+    mlir-opt -mem2reg -detect-reduction -mem2reg -canonicalize -affine-parallelize -lower-affine -convert-scf-to-openmp -convert-scf-to-std -convert-openmp-to-llvm \
       "${src_file}" | mlir-translate -mlir-to-llvmir > "${llvm_file}"
 
     clang_flags+=(-fopenmp)
@@ -108,7 +109,7 @@ function compile() {
 function run() {
   local exe_file="$1"
   local num_runs=$2
-  local aff="${3:-"0-0"}"
+  local aff="${3:-"1-8"}"
   local i=0
 
   result_str="$(basename "${exe_file%.exe}")"
