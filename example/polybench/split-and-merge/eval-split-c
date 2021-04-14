@@ -32,14 +32,22 @@ UTILITIES_DIR="${POLYBENCH_DIR}/utilities"
 
 # Submodules
 PLUTO_DIR="${DIR}/../../../pluto"
+LLVM_DIR="${DIR}/../../../llvm"
+BUILD_DIR="${DIR}/../../../build"
 
 # Compilation options.
-CLANG_OPTIONS=(-fno-vectorize -fno-slp-vectorize -fno-tree-vectorize -fno-unroll-loops)
-POLYBENCH_OPTIONS=(-I"${UTILITIES_DIR}")
-LDFLAGS=("-lm")
+# CLANG_FLAGS=(-fno-vectorize -fno-slp-vectorize -fno-tree-vectorize -fno-unroll-loops)
+CLANG_FLAGS=(-march=native -I "${LLVM_DIR}/clang/lib/Headers")
+POLYBENCH_FLAGS=(-I "${UTILITIES_DIR}" -I "${LLVM_DIR}/build/lib/clang/13.0.0/include/" -D POLYBENCH_NO_FLUSH_CACHE )
+LDFLAGS=(-L"${LLVM_DIR}/build/lib" -lm)
 
 # ----------------------------- Setup ENV -------------------------------------
 export PATH="${PATH}:${PLUTO_DIR}"
+export PATH="${LLVM_DIR}/build/bin:${PATH}"
+export PATH="${BUILD_DIR}/bin:${PATH}"
+
+export C_INCLUDE_PATH="${LLVM_DIR}/build/projects/openmp/runtime/src"
+export LD_LIBRARY_PATH="${LLVM_DIR}/build/lib:${BUILD_DIR}/pluto/lib:${LD_LIBRARY_PATH:-""}"
 
 
 # -----------------------------  Compile  -------------------------------------
@@ -49,11 +57,11 @@ export PATH="${PATH}:${PLUTO_DIR}"
 function compile() {
   local SRC_FILE="$1"
   local EXE_FILE="${SRC_FILE%.c}.exe"
-  local polybench_options=("${POLYBENCH_OPTIONS[@]}")
+  local polybench_flags=("${POLYBENCH_FLAGS[@]}")
 
-  polybench_options+=("-DEXTRALARGE_DATASET" "-DPOLYBENCH_TIME")
+  polybench_flags+=("-DEXTRALARGE_DATASET" "-DPOLYBENCH_TIME")
 
-  clang -O3 "${CLANG_OPTIONS[@]}" "${polybench_options[@]}" \
+  clang -O3 "${CLANG_FLAGS[@]}" "${polybench_flags[@]}" \
     "${SRC_FILE}" "${UTILITIES_DIR}/polybench.c" \
     -I "${UTILITIES_DIR}" -lm \
     -o "${EXE_FILE}"
@@ -69,7 +77,7 @@ function run() {
 
   RESULT_STR="$(basename "${EXE_FILE%.exe}")"
   until [ $i -ge "${NUM_RUNS}" ]; do
-    RESULT_STR="${RESULT_STR},$(taskset -c 1-1 numactl -i all "${EXE_FILE}")"
+    RESULT_STR="${RESULT_STR},$(taskset -c 1-8 numactl -i all "${EXE_FILE}")"
     ((i++))
   done
 
@@ -92,17 +100,17 @@ function gen_output() {
   local src_file="$1"
   local exe_file="${src_file%.c}.sanity-check.exe"
   local out_file="${src_file%.c}.out"
-  local polybench_options=("${POLYBENCH_OPTIONS[@]}")
-  polybench_options+=("-DSMALL_DATASET" "-DPOLYBENCH_DUMP_ARRAYS")
+  local polybench_flags=("${POLYBENCH_FLAGS[@]}")
+  polybench_flags+=("-DSMALL_DATASET" "-DPOLYBENCH_DUMP_ARRAYS")
 
-  clang "${src_file}" "${UTILITIES_DIR}/polybench.c" "${polybench_options[@]}" "${LDFLAGS[@]}" -o "${exe_file}" 
+  clang "${src_file}" "${UTILITIES_DIR}/polybench.c" "${polybench_flags[@]}" "${LDFLAGS[@]}" -o "${exe_file}" 
   "${exe_file}" 2>&1 | tee "${out_file}" &>/dev/null 
 }
 
 
-for ty in "${TYPES[@]}"; do
-  codegen "${TARGET}/${TARGET}.${ty}.c"
-done
+# for ty in "${TYPES[@]}"; do
+#   codegen "${TARGET}/${TARGET}.${ty}.c"
+# done
 
 for ty in "${TYPES[@]}" ; do
   for with_pluto in "" ".pluto"; do 
@@ -125,7 +133,7 @@ echo ""
 
 # split.pluto.inner split.pluto.noscr 
 for ty in "${TYPES[@]}" ; do
-  for with_pluto in "" ".pluto"; do 
+  for with_pluto in ".pluto"; do 
     SRC_FILE="${TARGET}/${TARGET}.${ty}${with_pluto}.c"
     echo ">>> Running ${SRC_FILE} ..."
     EXE_TIME=$(run "$(compile "${SRC_FILE}")" 5)
