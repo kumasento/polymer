@@ -14,7 +14,7 @@ POLYBENCH_SRC_FILE="${UTILITIES_DIR}/polybench.c"
 
 # Submodules
 BUILD_DIR="${DIR}/../../../build"
-LLVM_DIR="${DIR}/../../../llvm/"
+LLVM_DIR="${HOME}/mlir-gpu"
 PLUTO_DIR="${DIR}/../../../pluto"
 
 # Compilation options.
@@ -71,7 +71,7 @@ function polymer_opt() {
 
   polymer_options+=("-canonicalize" "-reg2mem" "-insert-redundant-load" "-extract-scop-stmt")
   if [ "${mode}" = "seq" ]; then
-    polymer_options+=(-pluto-opt)
+    polymer_options+=(-pluto-opt -inline)
   else
     polymer_options+=(-pluto-opt="parallelize=1" -inline)
   fi

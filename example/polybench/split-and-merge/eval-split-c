@@ -36,9 +36,12 @@ LLVM_DIR="${DIR}/../../../llvm"
 BUILD_DIR="${DIR}/../../../build"
 
 # Compilation options.
-# CLANG_FLAGS=(-fno-vectorize -fno-slp-vectorize -fno-tree-vectorize -fno-unroll-loops)
-CLANG_FLAGS=(-march=native -I "${LLVM_DIR}/clang/lib/Headers")
-POLYBENCH_FLAGS=(-I "${UTILITIES_DIR}" -I "${LLVM_DIR}/build/lib/clang/13.0.0/include/" -D POLYBENCH_NO_FLUSH_CACHE )
+CLANG_FLAGS=(-march=native)
+# CLANG_FLAGS=(-march=native -fno-unroll-loops)
+# CLANG_FLAGS=(-march=native -fno-vectorize -fno-slp-vectorize -fno-tree-vectorize)
+# CLANG_FLAGS=(-march=native -fno-vectorize -fno-slp-vectorize -fno-tree-vectorize -fno-unroll-loops)
+# CLANG_FLAGS=(-march=native -I "${LLVM_DIR}/clang/lib/Headers")
+POLYBENCH_FLAGS=(-I "${UTILITIES_DIR}" -I "${LLVM_DIR}/build/lib/clang/13.0.0/include/" -D POLYBENCH_NO_FLUSH_CACHE)
 LDFLAGS=(-L"${LLVM_DIR}/build/lib" -lm)
 
 # ----------------------------- Setup ENV -------------------------------------
@@ -108,9 +111,9 @@ function gen_output() {
 }
 
 
-# for ty in "${TYPES[@]}"; do
-#   codegen "${TARGET}/${TARGET}.${ty}.c"
-# done
+for ty in "${TYPES[@]}"; do
+  codegen "${TARGET}/${TARGET}.${ty}.c"
+done
 
 for ty in "${TYPES[@]}" ; do
   for with_pluto in "" ".pluto"; do 
