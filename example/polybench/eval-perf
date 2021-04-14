@@ -29,9 +29,7 @@ DELETE_WORKDIR="false"
 SKIPPED_TESTS="adi"
 LLVM_DIR="" # To be set later.
 
-OPT_CONFIG="1" # 1 stands for single O3, 2 for double O3
-
-while getopts ":hdgsupvf:t:c:l:" opt; do 
+while getopts ":hdgsupvf:t:l:" opt; do 
   case "${opt}" in 
     h ) 
       echo ""
@@ -47,7 +45,6 @@ while getopts ":hdgsupvf:t:c:l:" opt; do
       echo "    -p                  Enable parallelization"
       echo "    -f <target>         Evaluate the <target> file"
       echo "    -t <pluto var>      Specific Pluto variant (i64, 1d, etc.)"
-      echo "    -c <opt level>      1 - single O3, 2 - double O3"
       echo "    -l <LLVM dir>       Path to the llvm install directory"
       exit 0
       ;;
@@ -76,9 +73,6 @@ while getopts ":hdgsupvf:t:c:l:" opt; do
     u )
       CLANG_NO_UNROLL_OPTIONS=""
       OPT_NO_UNROLL_OPTIONS=""
-      ;;
-    c )
-      OPT_CONFIG="${OPTARG}"
       ;;
     l )
       LLVM_DIR="${OPTARG}"
@@ -154,13 +148,13 @@ function run_pluto()
   fi
 
   # Compile Pluto generated code
-  if [ "${OPT_CONFIG}" = "1" ]; then
-    clang "${PLUTO_SRC_FILE}" -o "${PLUTO_LLVM_IR_FILE}" -S -emit-llvm -I "${UTILITIES_DIR}" -O -Xclang -disable-llvm-passes \
-      -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET  
-  elif [ "${OPT_CONFIG}" = "2" ]; then
-    clang  "${PLUTO_SRC_FILE}" -O3 ${CLANG_OPTIONS} -o "${PLUTO_LLVM_IR_FILE}" -S -emit-llvm -I "${UTILITIES_DIR}" \
-      -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET  
-  fi
+  # if [ "${OPT_CONFIG}" = "1" ]; then
+  # clang "${PLUTO_SRC_FILE}" -o "${PLUTO_LLVM_IR_FILE}" -S -emit-llvm -I "${UTILITIES_DIR}" -O -Xclang -disable-llvm-passes \
+  #   -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET  
+  # elif [ "${OPT_CONFIG}" = "2" ]; then
+  clang  "${PLUTO_SRC_FILE}" -O3 ${CLANG_OPTIONS} -o "${PLUTO_LLVM_IR_FILE}" -S -emit-llvm -I "${UTILITIES_DIR}" \
+    -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET  
+  # fi
 
   clang "${PLUTO_LLVM_IR_FILE}" "${POLYBENCH_SRC_FILE}" -O3 ${CLANG_OPTIONS} -o "${PLUTO_EXE_FILE}" -lm \
     -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET -save-temps
@@ -219,11 +213,11 @@ function run_polymer()
       mlir-translate -mlir-to-llvmir > "${POLYMER_LLVM_IR_FILE}"
   fi
 
-  if [ "${OPT_CONFIG}" = "2" ]; then
-    opt -S "${POLYMER_LLVM_IR_FILE}" -O3 ${OPT_OPTIONS} -o "${POLYMER_LLVM_IR_OPT_FILE}" 
-  else
-    cp "${POLYMER_LLVM_IR_FILE}" "${POLYMER_LLVM_IR_OPT_FILE}" 
-  fi
+  # if [ "${OPT_CONFIG}" = "2" ]; then
+  #   opt -S "${POLYMER_LLVM_IR_FILE}" -O3 ${OPT_OPTIONS} -o "${POLYMER_LLVM_IR_OPT_FILE}" 
+  # else
+  cp "${POLYMER_LLVM_IR_FILE}" "${POLYMER_LLVM_IR_OPT_FILE}" 
+  # fi
 
   clang "${POLYMER_LLVM_IR_OPT_FILE}" "${POLYBENCH_SRC_FILE}" -O3 ${CLANG_OPTIONS} -o "${POLYMER_EXE_FILE}" -lm \
     -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET -save-temps
@@ -298,8 +292,8 @@ function eval_dir() {
       echo "${POLYMER_RESULT_STR}" >> "${WORKLOG}"
 
       echo ">>> Results updated to ${WORKLOG} "
-      echo ">>> Packing things up ..."
-      tar cf "${DATAFILE}" "${WORKDIR}" "${WORKLOG}" "${TRACELOG}"
+      # echo ">>> Packing things up ..."
+      # tar cf "${DATAFILE}" "${WORKDIR}" "${WORKLOG}" "${TRACELOG}"
       echo ""
     fi
   done
