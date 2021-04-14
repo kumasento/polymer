@@ -156,7 +156,7 @@ function run_pluto()
     -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET  
   # fi
 
-  clang "${PLUTO_LLVM_IR_FILE}" "${POLYBENCH_SRC_FILE}" -O3 ${CLANG_OPTIONS} -o "${PLUTO_EXE_FILE}" -lm \
+  clang "${PLUTO_LLVM_IR_FILE}" "${POLYBENCH_SRC_FILE}" -march=native -O3 ${CLANG_OPTIONS} -o "${PLUTO_EXE_FILE}" -lm \
     -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET -save-temps
 
   # Run the Pluto-compiled executable
@@ -219,7 +219,7 @@ function run_polymer()
   cp "${POLYMER_LLVM_IR_FILE}" "${POLYMER_LLVM_IR_OPT_FILE}" 
   # fi
 
-  clang "${POLYMER_LLVM_IR_OPT_FILE}" "${POLYBENCH_SRC_FILE}" -O3 ${CLANG_OPTIONS} -o "${POLYMER_EXE_FILE}" -lm \
+  clang "${POLYMER_LLVM_IR_OPT_FILE}" "${POLYBENCH_SRC_FILE}" -march=native -O3 ${CLANG_OPTIONS} -o "${POLYMER_EXE_FILE}" -lm \
     -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET -save-temps
 
   # Run the Polymer-compiled executable
