@@ -9,7 +9,7 @@ set -o nounset
 function perf_count() {
   local cmd="$1"
   local perf_result
-  perf_result="$(perf stat -e cycles,instructions,branches,branch-misses,cache-references,cache-misses,bus-cycles,L1-dcache-loads,L1-dcache-load-misses,L1-dcache-stores,dTLB-loads,dTLB-load-misses,LLC-loads,LLC-load-misses,LLC-stores taskset -c 1-8 numactl -a "${cmd}")"
+  perf_result="$(perf stat -e cycles,instructions,branches,branch-misses,cache-references,cache-misses,bus-cycles,L1-dcache-loads,L1-dcache-load-misses,L1-dcache-stores,dTLB-loads,dTLB-load-misses,LLC-loads,LLC-load-misses,LLC-stores,cycle_activity.stalls_mem_any taskset -c 1-8 numactl -a "${cmd}")"
 
   echo "${perf_result}"
 }
