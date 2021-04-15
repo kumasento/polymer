@@ -425,7 +425,8 @@ struct UnifyScratchpadPass
       }
     });
 
-    if (!f) return;
+    if (!f)
+      return;
     unifyScratchpad(f, m, b);
   }
 };
@@ -527,6 +528,8 @@ int64_t annotateSplitId(mlir::AffineStoreOp op, int64_t startId, OpBuilder &b,
     worklist.pop();
 
     if (depth == targetDepth) {
+      if (!isSplittable(curr))
+        continue;
       curr->setAttr("scop.splittable", b.getIndexAttr(currId));
       currId++;
       continue;
