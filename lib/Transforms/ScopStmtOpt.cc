@@ -18,12 +18,14 @@
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
 #include "mlir/Transforms/RegionUtils.h"
 #include "mlir/Transforms/Utils.h"
 
 #include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallSet.h"
 
 #include <queue>
 #include <utility>
@@ -33,28 +35,6 @@
 using namespace mlir;
 using namespace llvm;
 using namespace polymer;
-
-/// Return the corresponding AllocaOp.
-// static Operation *insertScratchpad(mlir::AffineForOp forOp, OpBuilder &b) {
-
-//   OpBuilder::InsertionGuard guard(b);
-
-//   mlir::AffineBound lowerBound = forOp.getLowerBound();
-//   mlir::AffineBound upperBound = forOp.getUpperBound();
-
-//   assert(lowerBound.getMap().getNumResults() == 1);
-//   assert(lowerBound.getMap().getNumDims() == 0);
-//   assert(upperBound.getMap().getNumResults() == 1);
-//   assert(upperBound.getMap().getNumDims() == 0);
-
-//   // TODO: for now we use the upper bound to create a scratchpad. Its size
-//   can
-//   // be refined later.
-//   b.setInsertionPoint(innermostForOp);
-//   // b.create<mlir::AllocaOp>(op->getLoc(), upperBound);
-
-//   return nullptr;
-// }
 
 static void replace(ValueRange srcValues,
                     SmallVectorImpl<mlir::Value> &dstValues,
@@ -231,6 +211,15 @@ struct ScopStmtSplitPass
   void runOnOperation() override {
     ModuleOp m = getOperation();
     OpBuilder b(m.getContext());
+
+    if (toSplit.empty()) {
+      m.walk([&](Operation *op) {
+        if (op->hasAttr("scop.splittable")) {
+          toSplit.push_back(
+              op->getAttrOfType<mlir::IntegerAttr>("scop.splittable").getInt());
+        }
+      });
+    }
 
     for (auto id : toSplit)
       scopStmtSplit(m, b, id);
@@ -441,12 +430,163 @@ struct UnifyScratchpadPass
 };
 } // namespace
 
+static void findAccessPatterns(Operation *op,
+                               std::vector<std::vector<Value>> &patterns) {
+  std::queue<Operation *> worklist;
+  SmallPtrSet<Operation *, 8> visited;
+  worklist.push(op);
+  visited.insert(op);
+  while (!worklist.empty()) {
+    Operation *curr = worklist.front();
+    worklist.pop();
+
+    if (mlir::AffineLoadOp loadOp = dyn_cast<mlir::AffineLoadOp>(curr)) {
+      std::vector<Value> ivs;
+      OperandRange mapOperands = loadOp.getMapOperands();
+      std::copy(mapOperands.begin(), mapOperands.end(),
+                std::back_inserter(ivs));
+      patterns.push_back(ivs);
+      continue;
+    }
+
+    for (Value operand : curr->getOperands()) {
+      Operation *defOp = operand.getDefiningOp();
+      if (!defOp || visited.contains(defOp))
+        continue;
+
+      worklist.push(defOp);
+      visited.insert(defOp);
+    }
+  }
+}
+
+static bool satisfySplitHeuristic(mlir::AffineStoreOp op) {
+  // Get the enclosing loop IVs.
+  SmallVector<mlir::AffineForOp, 4> forOps;
+  getLoopIVs(*op.getOperation(), &forOps);
+
+  SmallVector<mlir::Value, 4> ivs(forOps.size());
+  std::transform(forOps.begin(), forOps.end(), ivs.begin(),
+                 [](mlir::AffineForOp op) { return op.getInductionVar(); });
+  if (ivs.size() < 3)
+    return false;
+
+  // Check if the innermost loop index is being accessed by the store op (LHS).
+  for (Value idx : op.getMapOperands())
+    if (idx == ivs.back())
+      return false;
+
+  // Find if there are at least two different access patterns on the RHS.
+  std::vector<std::vector<Value>> patterns;
+  findAccessPatterns(op, patterns);
+
+  if (patterns.size() <= 1)
+    return false;
+
+  // Examine all patterns. Each pattern is the list of indices being accessed.
+  // We want to find the number of disjoint sets among all patterns, where in
+  // the same set all patterns should access to the same indices in the same
+  // order. We have a simple algo here, check each pair of patterns, and
+  // determine whether they should be in the same set.
+  SmallSet<size_t, 4> visited;
+  int64_t numSets = 0;
+  for (size_t i = 0; i < patterns.size(); i++) {
+    if (visited.contains(i))
+      continue;
+
+    visited.insert(i);
+    numSets++;
+    for (size_t j = i + 1; j < patterns.size(); j++) {
+      if (visited.contains(j) || patterns[i].size() != patterns[j].size())
+        continue;
+      bool isSame = true;
+      for (size_t k = 0; isSame && k < patterns[i].size(); k++)
+        if (patterns[i][k] != patterns[j][k])
+          isSame = false;
+      if (isSame)
+        visited.insert(j);
+    }
+  }
+
+  return numSets >= 2;
+}
+
+int64_t annotateSplitId(mlir::AffineStoreOp op, int64_t startId, OpBuilder &b,
+                        int targetDepth = 2) {
+  std::queue<std::pair<Operation *, int>> worklist;
+  SmallPtrSet<Operation *, 4> visited;
+
+  int64_t currId = startId;
+  worklist.emplace(op, 0);
+  visited.insert(op);
+  while (!worklist.empty()) {
+    Operation *curr;
+    int depth;
+    std::tie(curr, depth) = worklist.front();
+    worklist.pop();
+
+    if (depth == targetDepth) {
+      curr->setAttr("scop.splittable", b.getIndexAttr(currId));
+      currId++;
+      continue;
+    }
+
+    for (Value operand : curr->getOperands()) {
+      Operation *defOp = operand.getDefiningOp();
+      if (!defOp || visited.contains(defOp))
+        continue;
+      if (isa<mlir::AffineLoadOp, ConstantOp>(defOp))
+        continue;
+
+      visited.insert(defOp);
+      worklist.emplace(defOp, depth + 1);
+    }
+  }
+
+  return currId;
+}
+
+int64_t annotateHeuristic(FuncOp f, int64_t startId, OpBuilder &b) {
+  int64_t currId = startId;
+  f.walk([&](mlir::AffineStoreOp op) {
+    if (satisfySplitHeuristic(op))
+      currId = annotateSplitId(op, currId, b);
+  });
+  return currId;
+}
+
+namespace {
+
+struct AnnotateHeuristicPass
+    : public mlir::PassWrapper<AnnotateHeuristicPass, OperationPass<ModuleOp>> {
+  void runOnOperation() override {
+    ModuleOp m = getOperation();
+    OpBuilder b(m.getContext());
+
+    int64_t splitId = 0;
+    m.walk([&](FuncOp f) { splitId = annotateHeuristic(f, splitId, b); });
+  }
+};
+
+} // namespace
+
 void polymer::registerScopStmtOptPasses() {
   PassRegistration<AnnotateSplittablePass>(
       "annotate-splittable",
       "Give operations that are splittable in its expression tree.");
+  PassRegistration<AnnotateHeuristicPass>(
+      "annotate-heuristic",
+      "Using the split heuristic to find split statements.");
   PassRegistration<ScopStmtSplitPass>(
       "scop-stmt-split", "Split a given set of splittable operations.");
   PassRegistration<UnifyScratchpadPass>(
       "unify-scratchpad", "Unify multiple scratchpads into a single one.");
+
+  PassPipelineRegistration<>(
+      "heuristic-split", "Split by heuristics", [](OpPassManager &pm) {
+        pm.addPass(std::make_unique<AnnotateHeuristicPass>());
+        pm.addPass(std::make_unique<ScopStmtSplitPass>());
+        pm.addPass(std::make_unique<UnifyScratchpadPass>());
+        pm.addPass(createCanonicalizerPass());
+      });
 }
