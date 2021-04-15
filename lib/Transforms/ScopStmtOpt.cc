@@ -328,7 +328,7 @@ static void unifyScratchpad(FuncOp f, ModuleOp m, OpBuilder &b) {
   });
 
   // No need to unify.
-  if (scratchpads.size() == 1)
+  if (scratchpads.size() <= 1)
     return;
 
   // Let's assume they all have the same dimensionality and the same element
@@ -417,7 +417,7 @@ struct UnifyScratchpadPass
     OpBuilder b(m.getContext());
 
     // First find the main function that has those scratchpad declared.
-    FuncOp f;
+    FuncOp f = nullptr;
     m.walk([&](FuncOp fun) {
       if (!f && hasScratchpadDefined(fun)) {
         f = fun;
@@ -425,6 +425,7 @@ struct UnifyScratchpadPass
       }
     });
 
+    if (!f) return;
     unifyScratchpad(f, m, b);
   }
 };
@@ -549,8 +550,9 @@ int64_t annotateSplitId(mlir::AffineStoreOp op, int64_t startId, OpBuilder &b,
 int64_t annotateHeuristic(FuncOp f, int64_t startId, OpBuilder &b) {
   int64_t currId = startId;
   f.walk([&](mlir::AffineStoreOp op) {
-    if (satisfySplitHeuristic(op))
+    if (satisfySplitHeuristic(op)) {
       currId = annotateSplitId(op, currId, b);
+    }
   });
   return currId;
 }
