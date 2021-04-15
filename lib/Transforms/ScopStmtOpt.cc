@@ -462,16 +462,37 @@ static void findAccessPatterns(Operation *op,
   }
 }
 
+static bool hasAdjacentInnermostLoop(ArrayRef<mlir::AffineForOp> forOps) {
+  if (forOps.size() < 2)
+    return false;
+
+  mlir::AffineForOp innermost = forOps.back();
+  mlir::AffineForOp parent = forOps[forOps.size() - 2];
+
+  bool hasAdjacent = false;
+  parent.getBody()->walk([&](mlir::AffineForOp op) {
+    if (op != innermost) {
+      hasAdjacent = true;
+      return;
+    }
+  });
+
+  return hasAdjacent;
+}
+
 static bool satisfySplitHeuristic(mlir::AffineStoreOp op) {
   // Get the enclosing loop IVs.
   SmallVector<mlir::AffineForOp, 4> forOps;
   getLoopIVs(*op.getOperation(), &forOps);
 
+  if (forOps.size() < 3)
+    return false;
+  if (hasAdjacentInnermostLoop(forOps))
+    return false;
+
   SmallVector<mlir::Value, 4> ivs(forOps.size());
   std::transform(forOps.begin(), forOps.end(), ivs.begin(),
                  [](mlir::AffineForOp op) { return op.getInductionVar(); });
-  if (ivs.size() < 3)
-    return false;
 
   // Check if the innermost loop index is being accessed by the store op (LHS).
   for (Value idx : op.getMapOperands())
