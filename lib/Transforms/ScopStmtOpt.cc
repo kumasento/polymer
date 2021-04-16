@@ -103,64 +103,69 @@ static Operation *apply(mlir::AffineMap affMap, ValueRange operands,
   return b.create<mlir::AffineApplyOp>(call.getLoc(), affMap, newOperands);
 }
 
-static void projectAllOutExcept(FlatAffineConstraints &cst, mlir::Value id) {
+static void projectAllOutExcept(FlatAffineConstraints &cst,
+                                SetVector<mlir::Value> ids) {
   SmallVector<Value, 4> dims;
   cst.getIdValues(0, cst.getNumDimIds(), &dims);
 
   for (Value dim : dims)
-    if (dim != id)
+    if (!ids.contains(dim))
       cst.projectOut(dim);
 }
 
 /// Calculate the lower bound and upper bound through affine apply, before the
 /// function is being called.
-static mlir::Value getMemRefSize(MutableArrayRef<mlir::AffineForOp> forOps,
-                                 FuncOp f, CallOp call, OpBuilder &b) {
+static void getMemRefSize(MutableArrayRef<mlir::AffineForOp> forOps, FuncOp f,
+                          CallOp call, int numDims,
+                          SmallVectorImpl<Value> &dims, OpBuilder &b) {
   OpBuilder::InsertionGuard guard(b);
 
-  assert(forOps.size() >= 1);
+  assert(forOps.size() >= numDims);
 
-  mlir::AffineForOp forOp = forOps.back();
+  SetVector<mlir::Value> indices;
+  for (size_t i = forOps.size() - numDims; i < forOps.size(); i++)
+    indices.insert(forOps[i].getInductionVar());
+
   SmallVector<Operation *, 4> enclosingOps{forOps.begin(), forOps.end()};
 
   FlatAffineConstraints cst;
   assert(succeeded(getIndexSet(enclosingOps, &cst)));
 
   // Project out indices other than the innermost.
-  cst.dump();
-  projectAllOutExcept(cst, forOp.getInductionVar());
-  cst.dump();
+  projectAllOutExcept(cst, indices);
 
-  mlir::AffineMap lbMap, ubMap;
-  std::tie(lbMap, ubMap) =
-      cst.getLowerAndUpperBound(0, 0, 1, 1, llvm::None, b.getContext());
+  BlockAndValueMapping mapping;
+  mapping.map(f.getArguments(), call.getOperands());
 
   SmallVector<mlir::Value, 4> mapOperands;
   cst.getIdValues(cst.getNumDimIds(), cst.getNumDimAndSymbolIds(),
                   &mapOperands);
 
-  BlockAndValueMapping mapping;
-  mapping.map(f.getArguments(), call.getOperands());
+  for (int dim = 0; dim < numDims; dim++) {
+    mlir::AffineMap lbMap, ubMap;
+    std::tie(lbMap, ubMap) = cst.getLowerAndUpperBound(
+        dim, 0, numDims, numDims, llvm::None, b.getContext());
 
-  // mlir::AffineMap lbMap = forOp.getLowerBoundMap();
-  // mlir::AffineMap ubMap = forOp.getUpperBoundMap();
+    // mlir::AffineMap lbMap = forOp.getLowerBoundMap();
+    // mlir::AffineMap ubMap = forOp.getUpperBoundMap();
 
-  assert(lbMap.getNumResults() == 1 &&
-         "The given loop should have a single lower bound.");
-  assert(ubMap.getNumResults() == 1 &&
-         "The given loop should have a single upper bound.");
-  Operation *lbOp = apply(lbMap, mapOperands, mapping, call, b);
-  Operation *ubOp = apply(ubMap, mapOperands, mapping, call, b);
+    assert(lbMap.getNumResults() == 1 &&
+           "The given loop should have a single lower bound.");
+    assert(ubMap.getNumResults() == 1 &&
+           "The given loop should have a single upper bound.");
+    Operation *lbOp = apply(lbMap, mapOperands, mapping, call, b);
+    Operation *ubOp = apply(ubMap, mapOperands, mapping, call, b);
 
-  b.setInsertionPointAfterValue(
-      findLastDefined(ValueRange({lbOp->getResult(0), ubOp->getResult(0)})));
+    b.setInsertionPointAfterValue(
+        findLastDefined(ValueRange({lbOp->getResult(0), ubOp->getResult(0)})));
 
-  mlir::AffineApplyOp memRefSizeApply = b.create<mlir::AffineApplyOp>(
-      forOp.getLoc(),
-      mlir::AffineMap::get(0, 2,
-                           b.getAffineSymbolExpr(1) - b.getAffineSymbolExpr(0)),
-      ValueRange{lbOp->getResult(0), ubOp->getResult(0)});
-  return memRefSizeApply.getResult();
+    Value size = b.create<mlir::AffineApplyOp>(
+        forOps.back().getLoc(),
+        mlir::AffineMap::get(
+            0, 2, b.getAffineSymbolExpr(1) - b.getAffineSymbolExpr(0)),
+        ValueRange{lbOp->getResult(0), ubOp->getResult(0)});
+    dims.push_back(size);
+  }
 }
 
 /// Append the given argument to the end of the argument list for both the
@@ -191,21 +196,25 @@ static void scopStmtSplit(ModuleOp m, OpBuilder &b, FuncOp f, mlir::CallOp call,
   SmallVector<mlir::AffineForOp, 4> forOps;
   getLoopIVs(*op, &forOps);
 
-  assert(forOps.size() >= 1 &&
-         "The given op to split should be enclosed in at least one affine.for");
+  assert(
+      forOps.size() >= 3 &&
+      "The given op to split should be enclosed in at least three affine.for");
+  int numDims = forOps.size() - 2;
 
   // For now we focus on the innermost for loop.
   mlir::AffineForOp forOp = forOps.back();
   // forOp.dump();
 
-  mlir::Value memSize = getMemRefSize(forOps, f, call, b);
+  SmallVector<mlir::Value, 4> memSizes;
+  getMemRefSize(forOps, f, call, numDims, memSizes, b);
   // Since there is only one loop depth.
-  MemRefType memType = MemRefType::get({-1}, op->getResult(0).getType());
+  MemRefType memType = MemRefType::get(SmallVector<int64_t>(numDims, -1),
+                                       op->getResult(0).getType());
 
-  b.setInsertionPointAfterValue(memSize);
+  b.setInsertionPointAfterValue(findLastDefined(ValueRange(memSizes)));
   // Allocation of the scratchpad memory.
   Operation *scrAlloc =
-      b.create<memref::AllocaOp>(forOp.getLoc(), memType, memSize);
+      b.create<memref::AllocaOp>(forOp.getLoc(), memType, memSizes);
   scrAlloc->setAttr("scop.scratchpad", b.getUnitAttr());
 
   // Pass it into the target function.
@@ -214,20 +223,26 @@ static void scopStmtSplit(ModuleOp m, OpBuilder &b, FuncOp f, mlir::CallOp call,
 
   // Insert scratchpad read and write.
   b.setInsertionPointAfter(op);
-  Value lb = b.create<mlir::AffineApplyOp>(
-      op->getLoc(), forOp.getLowerBoundMap(), forOp.getLowerBoundOperands());
-  Value addr = b.create<mlir::AffineApplyOp>(
-      op->getLoc(),
-      AffineMap::get(2, 0, b.getAffineDimExpr(0) - b.getAffineDimExpr(1)),
-      ValueRange({forOp.getInductionVar(), lb}));
+
+  SmallVector<Value, 4> addrs;
+  for (int dim = 0; dim < numDims; dim++) {
+    mlir::AffineForOp curr = forOps[forOps.size() - numDims + dim];
+    Value lb = b.create<mlir::AffineApplyOp>(
+        op->getLoc(), curr.getLowerBoundMap(), curr.getLowerBoundOperands());
+    Value addr = b.create<mlir::AffineApplyOp>(
+        op->getLoc(),
+        AffineMap::get(2, 0, b.getAffineDimExpr(0) - b.getAffineDimExpr(1)),
+        ValueRange({curr.getInductionVar(), lb}));
+    addrs.push_back(addr);
+  }
 
   Operation *loadOp =
-      b.create<mlir::AffineLoadOp>(op->getLoc(), scrInFunc, addr);
+      b.create<mlir::AffineLoadOp>(op->getLoc(), scrInFunc, addrs);
   op->replaceAllUsesWith(loadOp);
 
-  b.setInsertionPointAfterValue(addr);
+  b.setInsertionPointAfterValue(addrs.back());
   b.create<mlir::AffineStoreOp>(op->getLoc(), op->getResult(0), scrInFunc,
-                                addr);
+                                addrs);
 }
 
 static void scopStmtSplit(ModuleOp m, OpBuilder &b, int toSplit) {
@@ -501,7 +516,8 @@ struct UnifyScratchpadPass
 } // namespace
 
 static void findAccessPatterns(Operation *op,
-                               std::vector<std::vector<Value>> &patterns) {
+                               std::vector<std::vector<Value>> &patterns,
+                               SmallVectorImpl<Value> &memrefs) {
   std::queue<Operation *> worklist;
   SmallPtrSet<Operation *, 8> visited;
   worklist.push(op);
@@ -516,6 +532,7 @@ static void findAccessPatterns(Operation *op,
       std::copy(mapOperands.begin(), mapOperands.end(),
                 std::back_inserter(ivs));
       patterns.push_back(ivs);
+      memrefs.push_back(loadOp.getMemRef());
       continue;
     }
 
@@ -567,9 +584,26 @@ static bool satisfySplitHeuristic(mlir::AffineStoreOp op) {
     if (idx == ivs.back())
       return false;
 
+  // Don't allow the scalar case.
+  Value memToStore = op.getMemRef();
+  ArrayRef<int64_t> shape = memToStore.getType().cast<MemRefType>().getShape();
+  if (shape.size() == 1 && shape[0] == 1)
+    return false;
+
   // Find if there are at least two different access patterns on the RHS.
   std::vector<std::vector<Value>> patterns;
-  findAccessPatterns(op, patterns);
+  SmallVector<Value, 4> memrefs;
+  findAccessPatterns(op, patterns, memrefs);
+
+  // Check if all memref access are to the same memref.
+  bool allAccessToSame = true;
+  for (Value memref : memrefs)
+    if (memref != op.getMemRef()) {
+      allAccessToSame = false;
+      break;
+    }
+  if (allAccessToSame)
+    return false;
 
   if (patterns.size() <= 1)
     return false;
