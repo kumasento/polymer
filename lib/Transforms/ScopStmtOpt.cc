@@ -48,6 +48,37 @@ static void replace(ValueRange srcValues,
   }
 }
 
+static Value findLastDefined(ValueRange values) {
+  assert(!values.empty());
+
+  Operation *parentOp = values[0].getParentBlock()->getParentOp();
+  assert(isa<FuncOp>(parentOp));
+
+  FuncOp f = cast<FuncOp>(parentOp);
+  DominanceInfo dom(f);
+
+  // TODO: should do a proper topological sort here.
+  for (Value value : values) {
+    if (value.isa<BlockArgument>())
+      continue;
+    bool dominatedByAll = true;
+    for (Value other : values) {
+      if (other == value || other.isa<BlockArgument>())
+        continue;
+
+      if (!dom.dominates(other.getDefiningOp(), value.getDefiningOp())) {
+        dominatedByAll = false;
+        break;
+      }
+    }
+
+    if (dominatedByAll)
+      return value;
+  }
+
+  assert(false);
+}
+
 static Operation *apply(mlir::AffineMap affMap, ValueRange operands,
                         BlockAndValueMapping &mapping, mlir::CallOp call,
                         OpBuilder &b) {
@@ -56,9 +87,10 @@ static Operation *apply(mlir::AffineMap affMap, ValueRange operands,
   SmallVector<mlir::Value, 8> newOperands;
   replace(operands, newOperands, mapping);
 
-  if (newOperands.size() > 0)
-    b.setInsertionPointAfterValue(newOperands[0]);
-  else
+  if (newOperands.size() > 0) {
+    Value insertAfter = findLastDefined(newOperands);
+    b.setInsertionPointAfterValue(insertAfter);
+  } else
     b.setInsertionPointToStart(
         &(*(call->getParentOfType<FuncOp>().body().begin())));
 
@@ -71,28 +103,57 @@ static Operation *apply(mlir::AffineMap affMap, ValueRange operands,
   return b.create<mlir::AffineApplyOp>(call.getLoc(), affMap, newOperands);
 }
 
+static void projectAllOutExcept(FlatAffineConstraints &cst, mlir::Value id) {
+  SmallVector<Value, 4> dims;
+  cst.getIdValues(0, cst.getNumDimIds(), &dims);
+
+  for (Value dim : dims)
+    if (dim != id)
+      cst.projectOut(dim);
+}
+
 /// Calculate the lower bound and upper bound through affine apply, before the
 /// function is being called.
-static mlir::Value getMemRefSize(mlir::AffineForOp forOp, FuncOp f, CallOp call,
-                                 OpBuilder &b) {
+static mlir::Value getMemRefSize(MutableArrayRef<mlir::AffineForOp> forOps,
+                                 FuncOp f, CallOp call, OpBuilder &b) {
   OpBuilder::InsertionGuard guard(b);
+
+  assert(forOps.size() >= 1);
+
+  mlir::AffineForOp forOp = forOps.back();
+  SmallVector<Operation *, 4> enclosingOps{forOps.begin(), forOps.end()};
+
+  FlatAffineConstraints cst;
+  assert(succeeded(getIndexSet(enclosingOps, &cst)));
+
+  // Project out indices other than the innermost.
+  cst.dump();
+  projectAllOutExcept(cst, forOp.getInductionVar());
+  cst.dump();
+
+  mlir::AffineMap lbMap, ubMap;
+  std::tie(lbMap, ubMap) =
+      cst.getLowerAndUpperBound(0, 0, 1, 1, llvm::None, b.getContext());
+
+  SmallVector<mlir::Value, 4> mapOperands;
+  cst.getIdValues(cst.getNumDimIds(), cst.getNumDimAndSymbolIds(),
+                  &mapOperands);
 
   BlockAndValueMapping mapping;
   mapping.map(f.getArguments(), call.getOperands());
 
-  mlir::AffineMap lbMap = forOp.getLowerBoundMap();
-  mlir::AffineMap ubMap = forOp.getUpperBoundMap();
+  // mlir::AffineMap lbMap = forOp.getLowerBoundMap();
+  // mlir::AffineMap ubMap = forOp.getUpperBoundMap();
 
   assert(lbMap.getNumResults() == 1 &&
          "The given loop should have a single lower bound.");
   assert(ubMap.getNumResults() == 1 &&
          "The given loop should have a single upper bound.");
-  Operation *lbOp =
-      apply(lbMap, forOp.getLowerBoundOperands(), mapping, call, b);
-  Operation *ubOp =
-      apply(ubMap, forOp.getUpperBoundOperands(), mapping, call, b);
+  Operation *lbOp = apply(lbMap, mapOperands, mapping, call, b);
+  Operation *ubOp = apply(ubMap, mapOperands, mapping, call, b);
 
-  b.setInsertionPointAfter(ubOp);
+  b.setInsertionPointAfterValue(
+      findLastDefined(ValueRange({lbOp->getResult(0), ubOp->getResult(0)})));
 
   mlir::AffineApplyOp memRefSizeApply = b.create<mlir::AffineApplyOp>(
       forOp.getLoc(),
@@ -137,7 +198,7 @@ static void scopStmtSplit(ModuleOp m, OpBuilder &b, FuncOp f, mlir::CallOp call,
   mlir::AffineForOp forOp = forOps.back();
   // forOp.dump();
 
-  mlir::Value memSize = getMemRefSize(forOp, f, call, b);
+  mlir::Value memSize = getMemRefSize(forOps, f, call, b);
   // Since there is only one loop depth.
   MemRefType memType = MemRefType::get({-1}, op->getResult(0).getType());
 
@@ -153,13 +214,20 @@ static void scopStmtSplit(ModuleOp m, OpBuilder &b, FuncOp f, mlir::CallOp call,
 
   // Insert scratchpad read and write.
   b.setInsertionPointAfter(op);
-  Operation *loadOp = b.create<mlir::AffineLoadOp>(op->getLoc(), scrInFunc,
-                                                   forOp.getInductionVar());
+  Value lb = b.create<mlir::AffineApplyOp>(
+      op->getLoc(), forOp.getLowerBoundMap(), forOp.getLowerBoundOperands());
+  Value addr = b.create<mlir::AffineApplyOp>(
+      op->getLoc(),
+      AffineMap::get(2, 0, b.getAffineDimExpr(0) - b.getAffineDimExpr(1)),
+      ValueRange({forOp.getInductionVar(), lb}));
+
+  Operation *loadOp =
+      b.create<mlir::AffineLoadOp>(op->getLoc(), scrInFunc, addr);
   op->replaceAllUsesWith(loadOp);
 
-  b.setInsertionPointAfter(op);
+  b.setInsertionPointAfterValue(addr);
   b.create<mlir::AffineStoreOp>(op->getLoc(), op->getResult(0), scrInFunc,
-                                forOp.getInductionVar());
+                                addr);
 }
 
 static void scopStmtSplit(ModuleOp m, OpBuilder &b, int toSplit) {
@@ -549,8 +617,8 @@ int64_t annotateSplitId(mlir::AffineStoreOp op, int64_t startId, OpBuilder &b,
     worklist.pop();
 
     if (depth == targetDepth) {
-      if (!isSplittable(curr))
-        continue;
+      // if (!isSplittable(curr))
+      //   continue;
       curr->setAttr("scop.splittable", b.getIndexAttr(currId));
       currId++;
       continue;

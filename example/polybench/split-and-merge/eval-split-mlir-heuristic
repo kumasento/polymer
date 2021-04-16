@@ -15,6 +15,9 @@ POLYBENCH_SRC_FILE="${UTILITIES_DIR}/polybench.c"
 # Submodules
 BUILD_DIR="${DIR}/../../../build"
 LLVM_DIR="${HOME}/mlir-gpu"
+if [ ! -d "${LLVM_DIR}" ]; then
+  LLVM_DIR="${DIR}/../../../llvm"
+fi
 PLUTO_DIR="${DIR}/../../../pluto"
 
 # Compilation options.
