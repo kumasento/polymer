@@ -566,9 +566,18 @@ static bool hasAdjacentInnermostLoop(ArrayRef<mlir::AffineForOp> forOps) {
 }
 
 static bool setEqual(ValueRange a, ValueRange b) {
-  SetVector<Value> s1(a.begin(), a.end());
-  SetVector<Value> s2(b.begin(), b.end());
-  return s1 == s2;
+  for (Value v : a) {
+    v.dump();
+    if (std::find(b.begin(), b.end(), v) == b.end())
+      return false;
+  }
+  for (Value v : b) {
+    v.dump();
+    if (std::find(a.begin(), a.end(), v) == b.end())
+      return false;
+  }
+
+  return true;
 }
 
 static bool satisfySplitHeuristic(mlir::AffineStoreOp op) {
@@ -591,7 +600,7 @@ static bool satisfySplitHeuristic(mlir::AffineStoreOp op) {
       return false;
 
   // All indvars except the innermost should appear on the LHS.
-  if (!setEqual(op.getOperands(),
+  if (!setEqual(op.getMapOperands(),
                 ValueRange(ArrayRef<Value>(ivs.begin(), std::prev(ivs.end())))))
     return false;
 
