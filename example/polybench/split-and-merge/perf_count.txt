@@ -1,260 +1,260 @@
 
- Performance counter stats for 'taskset -c 1-8 numactl -a ./2mm/2mm.nosplit.polymer.seq.exe':
+ Performance counter stats for 'taskset -c 1-8 numactl -a ./tmp/heuristic.EXTRALARGE.20210416-171718/2mm/2mm.nosplit.polymer.seq.exe':
 
-        8995791122      cycles:u                                                      (24.67%)
-       14155828865      instructions:u            #    1.57  insn per cycle           (30.95%)
-        1070263177      branches:u                                                    (31.08%)
-           7314950      branch-misses:u           #    0.68% of all branches          (31.21%)
-         114404620      cache-references:u                                            (31.34%)
-          35874005      cache-misses:u            #   31.357 % of all cache refs      (31.42%)
-          74477300      bus-cycles:u                                                  (25.14%)
-        5889104887      L1-dcache-loads:u                                             (25.14%)
-         202917133      L1-dcache-load-misses:u   #    3.45% of all L1-dcache hits    (25.14%)
-        1675886042      L1-dcache-stores:u                                            (25.14%)
-        5880411822      dTLB-loads:u                                                  (25.14%)
-           6562935      dTLB-load-misses:u        #    0.11% of all dTLB cache hits   (25.14%)
-          87981701      LLC-loads:u                                                   (25.06%)
-          34124431      LLC-load-misses:u         #   38.79% of all LL-cache hits     (24.93%)
-              2454      LLC-stores:u                                                  (12.31%)
-        2282634351      cycle_activity.stalls_mem_any:u                                     (18.46%)
+        9103097182      cycles                                                        (24.77%)
+       14270540238      instructions              #    1.57  insn per cycle           (31.08%)
+        1091024186      branches                                                      (31.21%)
+           7416709      branch-misses             #    0.68% of all branches          (31.34%)
+         115539858      cache-references                                              (31.47%)
+          36667007      cache-misses              #   31.735 % of all cache refs      (31.57%)
+          75945200      bus-cycles                                                    (25.25%)
+        5911236296      L1-dcache-loads                                               (25.25%)
+         206267029      L1-dcache-load-misses     #    3.49% of all L1-dcache hits    (25.25%)
+        1696383149      L1-dcache-stores                                              (25.12%)
+        5892666195      dTLB-loads                                                    (24.99%)
+           6655540      dTLB-load-misses          #    0.11% of all dTLB cache hits   (24.86%)
+          88772203      LLC-loads                                                     (24.73%)
+          34776924      LLC-load-misses           #   39.18% of all LL-cache hits     (24.73%)
+            137895      LLC-stores                                                    (12.36%)
+        2341892553      cycle_activity.stalls_mem_any                                     (18.54%)
 
-       3.055883944 seconds time elapsed
+       3.041861921 seconds time elapsed
 
-       2.975818000 seconds user
-       0.079995000 seconds sys
-
-
-
- Performance counter stats for 'taskset -c 1-8 numactl -a ./2mm/2mm.split-0-2.polymer.seq.exe':
-
-        9708862162      cycles:u                                                      (24.88%)
-       11401285271      instructions:u            #    1.17  insn per cycle           (31.14%)
-         422712714      branches:u                                                    (31.14%)
-           3163880      branch-misses:u           #    0.75% of all branches          (31.14%)
-         124875846      cache-references:u                                            (31.23%)
-           9377179      cache-misses:u            #    7.509 % of all cache refs      (31.30%)
-          81159454      bus-cycles:u                                                  (25.04%)
-        6630102843      L1-dcache-loads:u                                             (25.04%)
-        2502941291      L1-dcache-load-misses:u   #   37.75% of all L1-dcache hits    (25.04%)
-        3336881935      L1-dcache-stores:u                                            (25.04%)
-        6640400972      dTLB-loads:u                                                  (25.04%)
-            245697      dTLB-load-misses:u        #    0.00% of all dTLB cache hits   (25.04%)
-          31906794      LLC-loads:u                                                   (25.04%)
-           5354885      LLC-load-misses:u         #   16.78% of all LL-cache hits     (25.04%)
-              9616      LLC-stores:u                                                  (12.52%)
-        1634149905      cycle_activity.stalls_mem_any:u                                     (18.69%)
-
-       3.323164971 seconds time elapsed
-
-       3.255055000 seconds user
-       0.068063000 seconds sys
+       2.965766000 seconds user
+       0.076045000 seconds sys
 
 
 
- Performance counter stats for 'taskset -c 1-8 numactl -a ./3mm/3mm.nosplit.polymer.seq.exe':
+ Performance counter stats for 'taskset -c 1-8 numactl -a ./tmp/heuristic.EXTRALARGE.20210416-171718/2mm/2mm.heuristic.polymer.seq.exe':
 
-       19122711728      cycles:u                                                      (24.93%)
-       32862527206      instructions:u            #    1.72  insn per cycle           (31.22%)
-        3859351574      branches:u                                                    (31.28%)
-           6970779      branch-misses:u           #    0.18% of all branches          (31.34%)
-         185659702      cache-references:u                                            (31.40%)
-          44200817      cache-misses:u            #   23.807 % of all cache refs      (31.45%)
-         158551777      bus-cycles:u                                                  (25.12%)
-       14262311162      L1-dcache-loads:u                                             (25.06%)
-         330709671      L1-dcache-load-misses:u   #    2.32% of all L1-dcache hits    (25.00%)
-        5520989321      L1-dcache-stores:u                                            (24.94%)
-       14324682736      dTLB-loads:u                                                  (24.92%)
-          15826527      dTLB-load-misses:u        #    0.11% of all dTLB cache hits   (24.92%)
-         130409008      LLC-loads:u                                                   (24.92%)
-          40934043      LLC-load-misses:u         #   31.39% of all LL-cache hits     (24.92%)
-           2100853      LLC-stores:u                                                  (12.46%)
-        4316803277      cycle_activity.stalls_mem_any:u                                     (18.69%)
+        9932225741      cycles                                                        (24.78%)
+       11595540368      instructions              #    1.17  insn per cycle           (31.05%)
+         445847987      branches                                                      (31.05%)
+           3252150      branch-misses             #    0.73% of all branches          (31.14%)
+         126206399      cache-references                                              (31.26%)
+          10054270      cache-misses              #    7.967 % of all cache refs      (31.34%)
+          82860297      bus-cycles                                                    (25.07%)
+        6659876628      L1-dcache-loads                                               (25.07%)
+        2505765085      L1-dcache-load-misses     #   37.62% of all L1-dcache hits    (25.07%)
+        3352013643      L1-dcache-stores                                              (25.07%)
+        6662075944      dTLB-loads                                                    (25.07%)
+            294151      dTLB-load-misses          #    0.00% of all dTLB cache hits   (25.07%)
+          32349434      LLC-loads                                                     (25.07%)
+           5736389      LLC-load-misses           #   17.73% of all LL-cache hits     (25.07%)
+            138963      LLC-stores                                                    (12.45%)
+        1710900061      cycle_activity.stalls_mem_any                                     (18.60%)
 
-       6.486500947 seconds time elapsed
+       3.318865022 seconds time elapsed
 
-       6.374356000 seconds user
-       0.112041000 seconds sys
-
-
-
- Performance counter stats for 'taskset -c 1-8 numactl -a ./3mm/3mm.split-0-1-2.polymer.seq.exe':
-
-       15682578556      cycles:u                                                      (24.89%)
-       19074973397      instructions:u            #    1.22  insn per cycle           (31.17%)
-        1182393056      branches:u                                                    (31.25%)
-           3332786      branch-misses:u           #    0.28% of all branches          (31.32%)
-         202000663      cache-references:u                                            (31.40%)
-          24102627      cache-misses:u            #   11.932 % of all cache refs      (31.44%)
-         130855939      bus-cycles:u                                                  (25.15%)
-       10856662206      L1-dcache-loads:u                                             (25.15%)
-        3806684192      L1-dcache-load-misses:u   #   35.06% of all L1-dcache hits    (25.11%)
-        5445816523      L1-dcache-stores:u                                            (25.03%)
-       10883108305      dTLB-loads:u                                                  (24.96%)
-            282960      dTLB-load-misses:u        #    0.00% of all dTLB cache hits   (24.88%)
-          52016491      LLC-loads:u                                                   (24.85%)
-          12001024      LLC-load-misses:u         #   23.07% of all LL-cache hits     (24.86%)
-            602158      LLC-stores:u                                                  (12.43%)
-        2623515767      cycle_activity.stalls_mem_any:u                                     (18.64%)
-
-       5.343583595 seconds time elapsed
-
-       5.227345000 seconds user
-       0.116074000 seconds sys
+       3.242716000 seconds user
+       0.076063000 seconds sys
 
 
 
- Performance counter stats for 'taskset -c 1-8 numactl -a ./correlation/correlation.nosplit.polymer.seq.exe':
+ Performance counter stats for 'taskset -c 1-8 numactl -a ./tmp/heuristic.EXTRALARGE.20210416-171718/3mm/3mm.nosplit.polymer.seq.exe':
 
-       10532348904      cycles:u                                                      (24.72%)
-       17475516870      instructions:u            #    1.66  insn per cycle           (30.99%)
-        2097261087      branches:u                                                    (31.08%)
-          10741072      branch-misses:u           #    0.51% of all branches          (31.19%)
-         112170991      cache-references:u                                            (31.30%)
-          17640299      cache-misses:u            #   15.726 % of all cache refs      (31.37%)
-          87894922      bus-cycles:u                                                  (25.09%)
-        7058663902      L1-dcache-loads:u                                             (25.09%)
-         162346232      L1-dcache-load-misses:u   #    2.30% of all L1-dcache hits    (25.09%)
-        2693041634      L1-dcache-stores:u                                            (25.09%)
-        6924413406      dTLB-loads:u                                                  (25.09%)
-          19751240      dTLB-load-misses:u        #    0.29% of all dTLB cache hits   (25.09%)
-         105898672      LLC-loads:u                                                   (25.09%)
-          14644144      LLC-load-misses:u         #   13.83% of all LL-cache hits     (25.01%)
-            268607      LLC-stores:u                                                  (12.35%)
-        2303590855      cycle_activity.stalls_mem_any:u                                     (18.51%)
+       19344985474      cycles                                                        (24.96%)
+       33068151741      instructions              #    1.71  insn per cycle           (31.21%)
+        3883201789      branches                                                      (31.21%)
+           6835058      branch-misses             #    0.18% of all branches          (31.21%)
+         188033754      cache-references                                              (31.23%)
+          45391968      cache-misses              #   24.140 % of all cache refs      (31.27%)
+         161332160      bus-cycles                                                    (25.01%)
+       14355714358      L1-dcache-loads                                               (25.01%)
+         336509972      L1-dcache-load-misses     #    2.34% of all L1-dcache hits    (25.01%)
+        5537566661      L1-dcache-stores                                              (25.01%)
+       14329764731      dTLB-loads                                                    (25.01%)
+          15626150      dTLB-load-misses          #    0.11% of all dTLB cache hits   (25.01%)
+         130174675      LLC-loads                                                     (25.01%)
+          41666755      LLC-load-misses           #   32.01% of all LL-cache hits     (25.01%)
+           2119803      LLC-stores                                                    (12.51%)
+        4462013474      cycle_activity.stalls_mem_any                                     (18.74%)
 
-       3.571157060 seconds time elapsed
+       6.461178889 seconds time elapsed
 
-       3.511054000 seconds user
-       0.060052000 seconds sys
-
-
-
- Performance counter stats for 'taskset -c 1-8 numactl -a ./correlation/correlation.split-8.polymer.seq.exe':
-
-        7124214995      cycles:u                                                      (24.94%)
-        9418233398      instructions:u            #    1.32  insn per cycle           (31.32%)
-         430957338      branches:u                                                    (31.48%)
-           5857287      branch-misses:u           #    1.36% of all branches          (31.60%)
-         100204720      cache-references:u                                            (31.60%)
-          12201550      cache-misses:u            #   12.177 % of all cache refs      (31.53%)
-          59570918      bus-cycles:u                                                  (24.99%)
-        5246737698      L1-dcache-loads:u                                             (24.87%)
-        1721315961      L1-dcache-load-misses:u   #   32.81% of all L1-dcache hits    (24.87%)
-        2598781090      L1-dcache-stores:u                                            (24.87%)
-        5258130630      dTLB-loads:u                                                  (24.87%)
-            867381      dTLB-load-misses:u        #    0.02% of all dTLB cache hits   (24.87%)
-          31730194      LLC-loads:u                                                   (24.87%)
-           4973899      LLC-load-misses:u         #   15.68% of all LL-cache hits     (24.87%)
-           1094408      LLC-stores:u                                                  (12.44%)
-         981760037      cycle_activity.stalls_mem_any:u                                     (18.65%)
-
-       2.445065055 seconds time elapsed
-
-       2.377019000 seconds user
-       0.068029000 seconds sys
+       6.360975000 seconds user
+       0.100078000 seconds sys
 
 
 
- Performance counter stats for 'taskset -c 1-8 numactl -a ./covariance/covariance.nosplit.polymer.seq.exe':
+ Performance counter stats for 'taskset -c 1-8 numactl -a ./tmp/heuristic.EXTRALARGE.20210416-171718/3mm/3mm.heuristic.polymer.seq.exe':
 
-       10501700404      cycles:u                                                      (24.93%)
-       17475725055      instructions:u            #    1.66  insn per cycle           (31.18%)
-        2127161298      branches:u                                                    (31.18%)
-           1080838      branch-misses:u           #    0.05% of all branches          (31.18%)
-         112146242      cache-references:u                                            (31.21%)
-          17680014      cache-misses:u            #   15.765 % of all cache refs      (31.28%)
-          88080556      bus-cycles:u                                                  (25.02%)
-        6982572581      L1-dcache-loads:u                                             (25.02%)
-         159297347      L1-dcache-load-misses:u   #    2.28% of all L1-dcache hits    (25.02%)
-        2679838146      L1-dcache-stores:u                                            (25.02%)
-        7017768321      dTLB-loads:u                                                  (25.02%)
-          19331252      dTLB-load-misses:u        #    0.28% of all dTLB cache hits   (25.02%)
-         104575910      LLC-loads:u                                                   (25.02%)
-          13970257      LLC-load-misses:u         #   13.36% of all LL-cache hits     (25.02%)
-            821564      LLC-stores:u                                                  (12.51%)
-        2438667324      cycle_activity.stalls_mem_any:u                                     (18.74%)
+       15965626649      cycles                                                        (24.93%)
+       19262836740      instructions              #    1.21  insn per cycle           (31.23%)
+        1214611320      branches                                                      (31.31%)
+           3456745      branch-misses             #    0.28% of all branches          (31.38%)
+         194824968      cache-references                                              (31.46%)
+          25648325      cache-misses              #   13.165 % of all cache refs      (31.48%)
+         133129205      bus-cycles                                                    (25.10%)
+       10955027762      L1-dcache-loads                                               (25.03%)
+        3835948686      L1-dcache-load-misses     #   35.02% of all L1-dcache hits    (24.95%)
+        5508762835      L1-dcache-stores                                              (24.91%)
+       10977285323      dTLB-loads                                                    (24.91%)
+            337851      dTLB-load-misses          #    0.00% of all dTLB cache hits   (24.91%)
+          49884271      LLC-loads                                                     (24.91%)
+          12671424      LLC-load-misses           #   25.40% of all LL-cache hits     (24.91%)
+            829363      LLC-stores                                                    (12.46%)
+        2725979875      cycle_activity.stalls_mem_any                                     (18.68%)
 
-       3.581040117 seconds time elapsed
+       5.331716673 seconds time elapsed
 
-       3.496978000 seconds user
-       0.084023000 seconds sys
-
-
-
- Performance counter stats for 'taskset -c 1-8 numactl -a ./covariance/covariance.split-0.polymer.seq.exe':
-
-        7067221276      cycles:u                                                      (24.76%)
-        9417608063      instructions:u            #    1.33  insn per cycle           (31.03%)
-         435749367      branches:u                                                    (31.03%)
-           5905606      branch-misses:u           #    1.36% of all branches          (31.05%)
-          94013842      cache-references:u                                            (31.21%)
-          11515273      cache-misses:u            #   12.248 % of all cache refs      (31.35%)
-          59252618      bus-cycles:u                                                  (25.08%)
-        5175593355      L1-dcache-loads:u                                             (25.08%)
-        1704593766      L1-dcache-load-misses:u   #   32.94% of all L1-dcache hits    (25.08%)
-        2578640904      L1-dcache-stores:u                                            (25.08%)
-        5192415070      dTLB-loads:u                                                  (25.08%)
-            279282      dTLB-load-misses:u        #    0.01% of all dTLB cache hits   (25.08%)
-          26705319      LLC-loads:u                                                   (25.08%)
-           4320857      LLC-load-misses:u         #   16.18% of all LL-cache hits     (25.08%)
-            340164      LLC-stores:u                                                  (12.52%)
-         943934566      cycle_activity.stalls_mem_any:u                                     (18.63%)
-
-       2.424759077 seconds time elapsed
-
-       2.356732000 seconds user
-       0.068021000 seconds sys
+       5.207587000 seconds user
+       0.123990000 seconds sys
 
 
 
- Performance counter stats for 'taskset -c 1-8 numactl -a ./gramschmidt/gramschmidt.nosplit.polymer.seq.exe':
+ Performance counter stats for 'taskset -c 1-8 numactl -a ./tmp/heuristic.EXTRALARGE.20210416-171718/correlation/correlation.nosplit.polymer.seq.exe':
 
-       32799425814      cycles:u                                                      (24.97%)
-       24975844172      instructions:u            #    0.76  insn per cycle           (31.25%)
-        2768954504      branches:u                                                    (31.29%)
-           1192881      branch-misses:u           #    0.04% of all branches          (31.33%)
-        1504161399      cache-references:u                                            (31.35%)
-          84525081      cache-misses:u            #    5.619 % of all cache refs      (31.34%)
-         271968888      bus-cycles:u                                                  (25.03%)
-       10029921035      L1-dcache-loads:u                                             (24.99%)
-        3164631431      L1-dcache-load-misses:u   #   31.55% of all L1-dcache hits    (24.96%)
-        3548218993      L1-dcache-stores:u                                            (24.96%)
-       10074713931      dTLB-loads:u                                                  (24.96%)
-         860464924      dTLB-load-misses:u        #    8.54% of all dTLB cache hits   (24.96%)
-        1437040102      LLC-loads:u                                                   (24.96%)
-          82520932      LLC-load-misses:u         #    5.74% of all LL-cache hits     (24.96%)
-          15849262      LLC-stores:u                                                  (12.48%)
-       17265045407      cycle_activity.stalls_mem_any:u                                     (18.72%)
+       10704718887      cycles                                                        (24.86%)
+       17569359485      instructions              #    1.64  insn per cycle           (31.12%)
+        2108871327      branches                                                      (31.12%)
+          10814839      branch-misses             #    0.51% of all branches          (31.13%)
+         113032650      cache-references                                              (31.25%)
+          18103395      cache-misses              #   16.016 % of all cache refs      (31.31%)
+          89299606      bus-cycles                                                    (25.05%)
+        7122912599      L1-dcache-loads                                               (25.04%)
+         165867563      L1-dcache-load-misses     #    2.33% of all L1-dcache hits    (25.04%)
+        2735238759      L1-dcache-stores                                              (25.04%)
+        7018042887      dTLB-loads                                                    (25.04%)
+          19880451      dTLB-load-misses          #    0.28% of all dTLB cache hits   (25.05%)
+         106358907      LLC-loads                                                     (25.05%)
+          15091847      LLC-load-misses           #   14.19% of all LL-cache hits     (25.05%)
+            790915      LLC-stores                                                    (12.51%)
+        2403238723      cycle_activity.stalls_mem_any                                     (18.66%)
 
-      11.024725729 seconds time elapsed
+       3.577922244 seconds time elapsed
 
-      10.944404000 seconds user
-       0.080002000 seconds sys
+       3.521711000 seconds user
+       0.056027000 seconds sys
 
 
 
- Performance counter stats for 'taskset -c 1-8 numactl -a ./gramschmidt/gramschmidt.split-0.polymer.seq.exe':
+ Performance counter stats for 'taskset -c 1-8 numactl -a ./tmp/heuristic.EXTRALARGE.20210416-171718/correlation/correlation.heuristic.polymer.seq.exe':
 
-       32812781567      cycles:u                                                      (24.97%)
-       24940689543      instructions:u            #    0.76  insn per cycle           (31.24%)
-        2766237047      branches:u                                                    (31.28%)
-           1163655      branch-misses:u           #    0.04% of all branches          (31.31%)
-        1529430931      cache-references:u                                            (31.35%)
-          85270712      cache-misses:u            #    5.575 % of all cache refs      (31.37%)
-         272144779      bus-cycles:u                                                  (25.06%)
-        9818090942      L1-dcache-loads:u                                             (25.02%)
-        3164510993      L1-dcache-load-misses:u   #   32.23% of all L1-dcache hits    (24.98%)
-        3550344674      L1-dcache-stores:u                                            (24.95%)
-        9866060601      dTLB-loads:u                                                  (24.95%)
-         860507487      dTLB-load-misses:u        #    8.72% of all dTLB cache hits   (24.95%)
-        1454907166      LLC-loads:u                                                   (24.95%)
-          84257904      LLC-load-misses:u         #    5.79% of all LL-cache hits     (24.95%)
-          16531004      LLC-stores:u                                                  (12.48%)
-       17314802012      cycle_activity.stalls_mem_any:u                                     (18.71%)
+        7297210756      cycles                                                        (24.99%)
+        9531363693      instructions              #    1.31  insn per cycle           (31.38%)
+         462358470      branches                                                      (31.48%)
+           5982909      branch-misses             #    1.29% of all branches          (31.48%)
+          95770711      cache-references                                              (31.48%)
+          12650454      cache-misses              #   13.209 % of all cache refs      (31.40%)
+          60925100      bus-cycles                                                    (24.92%)
+        5268934394      L1-dcache-loads                                               (24.92%)
+        1731838475      L1-dcache-load-misses     #   32.87% of all L1-dcache hits    (24.92%)
+        2608491813      L1-dcache-stores                                              (24.92%)
+        5285781051      dTLB-loads                                                    (24.92%)
+            916078      dTLB-load-misses          #    0.02% of all dTLB cache hits   (24.92%)
+          29731077      LLC-loads                                                     (24.92%)
+           5157268      LLC-load-misses           #   17.35% of all LL-cache hits     (24.92%)
+           2067489      LLC-stores                                                    (12.46%)
+        1042438428      cycle_activity.stalls_mem_any                                     (18.69%)
 
-      11.029595465 seconds time elapsed
+       2.440628318 seconds time elapsed
 
-      10.961380000 seconds user
-       0.068008000 seconds sys
+       2.356579000 seconds user
+       0.084020000 seconds sys
+
+
+
+ Performance counter stats for 'taskset -c 1-8 numactl -a ./tmp/heuristic.EXTRALARGE.20210416-171718/covariance/covariance.nosplit.polymer.seq.exe':
+
+       10698608674      cycles                                                        (24.81%)
+       17798014864      instructions              #    1.66  insn per cycle           (31.07%)
+        2156320935      branches                                                      (31.07%)
+           1180187      branch-misses             #    0.05% of all branches          (31.14%)
+         113019765      cache-references                                              (31.25%)
+          18175459      cache-misses              #   16.082 % of all cache refs      (31.33%)
+          89249905      bus-cycles                                                    (25.06%)
+        6958389834      L1-dcache-loads                                               (25.06%)
+         162968976      L1-dcache-load-misses     #    2.34% of all L1-dcache hits    (25.06%)
+        2699330906      L1-dcache-stores                                              (25.06%)
+        7036334900      dTLB-loads                                                    (25.06%)
+          19353879      dTLB-load-misses          #    0.28% of all dTLB cache hits   (25.06%)
+         105085508      LLC-loads                                                     (25.06%)
+          14053400      LLC-load-misses           #   13.37% of all LL-cache hits     (25.06%)
+            244659      LLC-stores                                                    (12.47%)
+        2500268053      cycle_activity.stalls_mem_any                                     (18.62%)
+
+       3.575436656 seconds time elapsed
+
+       3.515380000 seconds user
+       0.059989000 seconds sys
+
+
+
+ Performance counter stats for 'taskset -c 1-8 numactl -a ./tmp/heuristic.EXTRALARGE.20210416-171718/covariance/covariance.heuristic.polymer.seq.exe':
+
+        7255602899      cycles                                                        (24.79%)
+        9574447749      instructions              #    1.32  insn per cycle           (31.06%)
+         461255015      branches                                                      (31.06%)
+           5965645      branch-misses             #    1.29% of all branches          (31.06%)
+          98184212      cache-references                                              (31.23%)
+          12283688      cache-misses              #   12.511 % of all cache refs      (31.34%)
+          60553267      bus-cycles                                                    (25.07%)
+        5202590673      L1-dcache-loads                                               (25.07%)
+        1709901718      L1-dcache-load-misses     #   32.87% of all L1-dcache hits    (25.07%)
+        2598558074      L1-dcache-stores                                              (25.07%)
+        5224906640      dTLB-loads                                                    (25.07%)
+            321206      dTLB-load-misses          #    0.01% of all dTLB cache hits   (25.07%)
+          28243727      LLC-loads                                                     (25.07%)
+           4619574      LLC-load-misses           #   16.36% of all LL-cache hits     (25.07%)
+            475230      LLC-stores                                                    (12.53%)
+        1020183217      cycle_activity.stalls_mem_any                                     (18.63%)
+
+       2.425738454 seconds time elapsed
+
+       2.365643000 seconds user
+       0.060041000 seconds sys
+
+
+
+ Performance counter stats for 'taskset -c 1-8 numactl -a ./tmp/heuristic.EXTRALARGE.20210416-171718/trmm/trmm.nosplit.polymer.seq.exe':
+
+        5433960755      cycles                                                        (24.78%)
+        9729385430      instructions              #    1.79  insn per cycle           (31.14%)
+        1017400094      branches                                                      (31.36%)
+           5042729      branch-misses             #    0.50% of all branches          (31.58%)
+          36865792      cache-references                                              (31.80%)
+           1215289      cache-misses              #    3.297 % of all cache refs      (31.83%)
+          45487621      bus-cycles                                                    (25.47%)
+        4307472411      L1-dcache-loads                                               (25.39%)
+          87198747      L1-dcache-load-misses     #    2.02% of all L1-dcache hits    (25.17%)
+        1345089170      L1-dcache-stores                                              (24.95%)
+        4336501504      dTLB-loads                                                    (24.73%)
+           9513950      dTLB-load-misses          #    0.22% of all dTLB cache hits   (24.59%)
+          33080458      LLC-loads                                                     (24.59%)
+           1010599      LLC-load-misses           #    3.05% of all LL-cache hits     (24.59%)
+             20756      LLC-stores                                                    (12.29%)
+         795024356      cycle_activity.stalls_mem_any                                     (18.44%)
+
+       1.822520475 seconds time elapsed
+
+       1.782437000 seconds user
+       0.040054000 seconds sys
+
+
+
+ Performance counter stats for 'taskset -c 1-8 numactl -a ./tmp/heuristic.EXTRALARGE.20210416-171718/trmm/trmm.heuristic.polymer.seq.exe':
+
+        4263431886      cycles                                                        (24.77%)
+        4606462469      instructions              #    1.08  insn per cycle           (31.22%)
+         182897523      branches                                                      (31.50%)
+           2202821      branch-misses             #    1.20% of all branches          (31.78%)
+          73294478      cache-references                                              (32.06%)
+           4928645      cache-misses              #    6.724 % of all cache refs      (32.03%)
+          35610526      bus-cycles                                                    (25.30%)
+        2620468316      L1-dcache-loads                                               (25.02%)
+        1307763112      L1-dcache-load-misses     #   49.91% of all L1-dcache hits    (24.74%)
+        1324954167      L1-dcache-stores                                              (24.68%)
+        2645558696      dTLB-loads                                                    (24.68%)
+            149957      dTLB-load-misses          #    0.01% of all dTLB cache hits   (24.68%)
+          16995685      LLC-loads                                                     (24.68%)
+           2059363      LLC-load-misses           #   12.12% of all LL-cache hits     (24.68%)
+             11133      LLC-stores                                                    (12.34%)
+         818372473      cycle_activity.stalls_mem_any                                     (18.51%)
+
+       1.426746650 seconds time elapsed
+
+       1.402673000 seconds user
+       0.024045000 seconds sys
 
 
