@@ -516,8 +516,7 @@ struct UnifyScratchpadPass
 } // namespace
 
 static void findAccessPatterns(Operation *op,
-                               std::vector<std::vector<Value>> &patterns,
-                               SmallVectorImpl<Value> &memrefs) {
+                               SmallVectorImpl<mlir::MemRefAccess> &accesses) {
   std::queue<Operation *> worklist;
   SmallPtrSet<Operation *, 8> visited;
   worklist.push(op);
@@ -531,8 +530,8 @@ static void findAccessPatterns(Operation *op,
       OperandRange mapOperands = loadOp.getMapOperands();
       std::copy(mapOperands.begin(), mapOperands.end(),
                 std::back_inserter(ivs));
-      patterns.push_back(ivs);
-      memrefs.push_back(loadOp.getMemRef());
+
+      accesses.push_back(MemRefAccess(loadOp));
       continue;
     }
 
@@ -603,21 +602,19 @@ static bool satisfySplitHeuristic(mlir::AffineStoreOp op) {
     return false;
 
   // Find if there are at least two different access patterns on the RHS.
-  std::vector<std::vector<Value>> patterns;
-  SmallVector<Value, 4> memrefs;
-  findAccessPatterns(op, patterns, memrefs);
+  SmallVector<MemRefAccess, 4> accesses;
+  findAccessPatterns(op, accesses);
 
   // Check if all memref access are to the same memref.
   bool allAccessToSame = true;
-  for (Value memref : memrefs)
-    if (memref != op.getMemRef()) {
+  for (MemRefAccess access : accesses)
+    if (access.memref != op.getMemRef()) {
       allAccessToSame = false;
       break;
     }
   if (allAccessToSame)
     return false;
-
-  if (patterns.size() <= 1)
+  if (accesses.size() <= 1)
     return false;
 
   // Examine all patterns. Each pattern is the list of indices being accessed.
@@ -627,24 +624,34 @@ static bool satisfySplitHeuristic(mlir::AffineStoreOp op) {
   // determine whether they should be in the same set.
   SmallSet<size_t, 4> visited;
   int64_t numSets = 0;
-  for (size_t i = 0; i < patterns.size(); i++) {
+  for (size_t i = 0; i < accesses.size(); i++) {
     if (visited.contains(i))
       continue;
 
     visited.insert(i);
     numSets++;
-    for (size_t j = i + 1; j < patterns.size(); j++) {
-      if (visited.contains(j) || patterns[i].size() != patterns[j].size())
+    for (size_t j = i + 1; j < accesses.size(); j++) {
+      if (visited.contains(j) ||
+          accesses[i].indices.size() != accesses[j].indices.size())
         continue;
+
+      AffineValueMap vmap1, vmap2;
+      accesses[i].getAccessMap(&vmap1);
+      accesses[j].getAccessMap(&vmap2);
+
+      AffineValueMap diff;
+      AffineValueMap::difference(vmap1, vmap2, &diff);
+
       bool isSame = true;
-      for (size_t k = 0; isSame && k < patterns[i].size(); k++)
-        if (patterns[i][k] != patterns[j][k])
+      for (unsigned k = 0; isSame && k < diff.getNumResults(); k++) {
+        if (!diff.getResult(k).isSymbolicOrConstant()) {
           isSame = false;
+        }
+      }
       if (isSame)
         visited.insert(j);
     }
   }
-
   return numSets >= 2;
 }
 
