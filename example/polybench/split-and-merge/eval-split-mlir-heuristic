@@ -114,7 +114,7 @@ function try_rebuild() {
 }
 
 ALL_ARGS=("$@")
-TARGET="${1}/${1}.c"
+TARGET="${1}"
 
 echo ""
 echo "    TARGET: ${TARGET}"
@@ -126,6 +126,10 @@ try_rebuild
 echo ">>> Sanity check ..."
 compile_mlir "${TARGET}" "debug"
 polymer_opt "${TARGET%.c}.mlir" "seq" "heuristic"
+if ! grep -q "splittable" "${TARGET%.c}.heuristic.polymer.seq.mlir"; then
+  echo "No heuristically splittable statement!"
+  exit 0
+fi
 compile "${TARGET%.c}.mlir"
 compile "${TARGET%.c}.heuristic.polymer.seq.mlir"
 
@@ -142,9 +146,9 @@ for mode in "seq" "par"; do
   compile_mlir "${TARGET}" "perf"
   polymer_opt "${TARGET%.c}.mlir" "${mode}" "heuristic"
   polymer_opt "${TARGET%.c}.mlir" "${mode}" "nosplit"
-  compile "${TARGET%.c}.mlir"
-  compile "${TARGET%.c}.nosplit.polymer.${mode}mlir"
-  compile "${TARGET%.c}.heuristic.polymer.${mode}.mlir"
+  compile "${TARGET%.c}.mlir" "${mode}"
+  compile "${TARGET%.c}.nosplit.polymer.${mode}.mlir" "${mode}"
+  compile "${TARGET%.c}.heuristic.polymer.${mode}.mlir" "${mode}"
 
   # run "${TARGET%.c}.exe" 5
   run "${TARGET%.c}.heuristic.polymer.${mode}.exe" 5
