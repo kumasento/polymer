@@ -77,7 +77,7 @@ void kernel_doitgen(int nr, int nq, int np,
 		    DATA_TYPE POLYBENCH_3D(A,NR,NQ,NP,nr,nq,np),
 		    DATA_TYPE POLYBENCH_2D(C4,NP,NP,np,np),
 		    DATA_TYPE POLYBENCH_1D(sum,NP,np),
-		    DATA_TYPE POLYBENCH_1D(S,NP,np))
+		    DATA_TYPE POLYBENCH_2D(S,NP,NP,np,np))
 {
   int r, q, p, s;
 
@@ -87,8 +87,8 @@ void kernel_doitgen(int nr, int nq, int np,
       for (p = 0; p < _PB_NP; p++)  {
 	sum[p] = SCALAR_VAL(0.0);
 	for (s = 0; s < _PB_NP; s++) {
-	  S[s] = A[r][q][s] * C4[s][p];
-	  sum[p] += S[s];
+	  S[p][s] = A[r][q][s] * C4[s][p];
+	  sum[p] += S[p][s];
 	}
       }
       for (p = 0; p < _PB_NP; p++)
@@ -109,7 +109,7 @@ int main(int argc, char** argv)
   /* Variable declaration/allocation. */
   POLYBENCH_3D_ARRAY_DECL(A,DATA_TYPE,NR,NQ,NP,nr,nq,np);
   POLYBENCH_1D_ARRAY_DECL(sum,DATA_TYPE,NP,np);
-  POLYBENCH_1D_ARRAY_DECL(S,DATA_TYPE,NP,np);
+  POLYBENCH_2D_ARRAY_DECL(S,DATA_TYPE,NP,NP,np,np);
   POLYBENCH_2D_ARRAY_DECL(C4,DATA_TYPE,NP,NP,np,np);
 
   /* Initialize array(s). */

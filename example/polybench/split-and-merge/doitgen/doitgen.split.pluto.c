@@ -83,15 +83,24 @@ void kernel_doitgen(int nr, int nq, int np,
 		    DATA_TYPE POLYBENCH_3D(A,NR,NQ,NP,nr,nq,np),
 		    DATA_TYPE POLYBENCH_2D(C4,NP,NP,np,np),
 		    DATA_TYPE POLYBENCH_1D(sum,NP,np),
-		    DATA_TYPE POLYBENCH_1D(S,NP,np))
+		    DATA_TYPE POLYBENCH_2D(S,NP,NP,np,np))
 {
   int r, q, p, s;
 
-  int t1, t2, t3, t4, t5, t6, t7, t8;
+  int t1, t2, t3, t4, t5, t6, t7;
  register int lbv, ubv;
 if ((_PB_NP >= 1) && (_PB_NQ >= 1) && (_PB_NR >= 1)) {
   for (t1=0;t1<=_PB_NR-1;t1++) {
     for (t2=0;t2<=_PB_NQ-1;t2++) {
+      for (t4=0;t4<=floord(_PB_NP-1,32);t4++) {
+        for (t5=0;t5<=floord(_PB_NP-1,32);t5++) {
+          for (t6=32*t5;t6<=min(_PB_NP-1,32*t5+31);t6++) {
+            for (t7=32*t4;t7<=min(_PB_NP-1,32*t4+31);t7++) {
+              S[t7][t6] = A[t1][t2][t6] * C4[t6][t7];;
+            }
+          }
+        }
+      }
       for (t4=0;t4<=floord(_PB_NP-1,32);t4++) {
         for (t5=32*t4;t5<=min(_PB_NP-1,32*t4+31);t5++) {
           sum[t5] = SCALAR_VAL(0.0);;
@@ -99,10 +108,9 @@ if ((_PB_NP >= 1) && (_PB_NQ >= 1) && (_PB_NR >= 1)) {
       }
       for (t4=0;t4<=floord(_PB_NP-1,32);t4++) {
         for (t5=0;t5<=floord(_PB_NP-1,32);t5++) {
-          for (t6=32*t5;t6<=min(_PB_NP-1,32*t5+31);t6++) {
-            for (t7=32*t4;t7<=min(_PB_NP-1,32*t4+31);t7++) {
-              S[t6] = A[t1][t2][t6] * C4[t6][t7];;
-              sum[t7] += S[t6];;
+          for (t6=32*t4;t6<=min(_PB_NP-1,32*t4+31);t6++) {
+            for (t7=32*t5;t7<=min(_PB_NP-1,32*t5+31);t7++) {
+              sum[t6] += S[t6][t7];;
             }
           }
         }
@@ -129,7 +137,7 @@ int main(int argc, char** argv)
   /* Variable declaration/allocation. */
   POLYBENCH_3D_ARRAY_DECL(A,DATA_TYPE,NR,NQ,NP,nr,nq,np);
   POLYBENCH_1D_ARRAY_DECL(sum,DATA_TYPE,NP,np);
-  POLYBENCH_1D_ARRAY_DECL(S,DATA_TYPE,NP,np);
+  POLYBENCH_2D_ARRAY_DECL(S,DATA_TYPE,NP,NP,np,np);
   POLYBENCH_2D_ARRAY_DECL(C4,DATA_TYPE,NP,NP,np,np);
 
   /* Initialize array(s). */
