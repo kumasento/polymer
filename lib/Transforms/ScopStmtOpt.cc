@@ -120,7 +120,7 @@ static void getMemRefSize(MutableArrayRef<mlir::AffineForOp> forOps, FuncOp f,
                           SmallVectorImpl<Value> &dims, OpBuilder &b) {
   OpBuilder::InsertionGuard guard(b);
 
-  assert(forOps.size() >= numDims);
+  assert(static_cast<int>(forOps.size()) >= numDims);
 
   SetVector<mlir::Value> indices;
   for (size_t i = forOps.size() - numDims; i < forOps.size(); i++)
@@ -565,6 +565,12 @@ static bool hasAdjacentInnermostLoop(ArrayRef<mlir::AffineForOp> forOps) {
   return hasAdjacent;
 }
 
+static bool setEqual(ValueRange a, ValueRange b) {
+  SetVector<Value> s1(a.begin(), a.end());
+  SetVector<Value> s2(b.begin(), b.end());
+  return s1 == s2;
+}
+
 static bool satisfySplitHeuristic(mlir::AffineStoreOp op) {
   // Get the enclosing loop IVs.
   SmallVector<mlir::AffineForOp, 4> forOps;
@@ -584,10 +590,9 @@ static bool satisfySplitHeuristic(mlir::AffineStoreOp op) {
     if (idx == ivs.back())
       return false;
 
-  // Don't allow the scalar case.
-  Value memToStore = op.getMemRef();
-  ArrayRef<int64_t> shape = memToStore.getType().cast<MemRefType>().getShape();
-  if (shape.size() == 1 && shape[0] == 1)
+  // All indvars except the innermost should appear on the LHS.
+  if (!setEqual(op.getOperands(),
+                ValueRange(ArrayRef<Value>(ivs.begin(), std::prev(ivs.end())))))
     return false;
 
   // Find if there are at least two different access patterns on the RHS.
