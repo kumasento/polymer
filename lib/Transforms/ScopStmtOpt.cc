@@ -567,13 +567,11 @@ static bool hasAdjacentInnermostLoop(ArrayRef<mlir::AffineForOp> forOps) {
 
 static bool setEqual(ValueRange a, ValueRange b) {
   for (Value v : a) {
-    v.dump();
     if (std::find(b.begin(), b.end(), v) == b.end())
       return false;
   }
   for (Value v : b) {
-    v.dump();
-    if (std::find(a.begin(), a.end(), v) == b.end())
+    if (std::find(a.begin(), a.end(), v) == a.end())
       return false;
   }
 
