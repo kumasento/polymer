@@ -2741,10 +2741,10 @@ loop types (loop, loop, scalar, loop, loop, scalar, scalar)
 [Pluto] Output written to doitgen.origin.pluto.c
 
 [pluto] Timing statistics
-[pluto] SCoP extraction + dependence analysis time: 0.002962s
-[pluto] Auto-transformation time: 0.055230s
-[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.004121s
-[pluto] Code generation time: 0.019450s
-[pluto] Other/Misc time: 0.278362s
-[pluto] Total time: 0.356004s
-[pluto] All times: 0.002962 0.055230 0.019450 0.278362
+[pluto] SCoP extraction + dependence analysis time: 0.002986s
+[pluto] Auto-transformation time: 0.055313s
+[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.004104s
+[pluto] Code generation time: 0.019537s
+[pluto] Other/Misc time: 0.278643s
+[pluto] Total time: 0.356479s
+[pluto] All times: 0.002986 0.055313 0.019537 0.278643

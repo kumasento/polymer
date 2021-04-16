@@ -96,7 +96,7 @@ if ((_PB_NP >= 1) && (_PB_NQ >= 1) && (_PB_NR >= 1)) {
         for (t5=0;t5<=floord(_PB_NP-1,32);t5++) {
           for (t6=32*t5;t6<=min(_PB_NP-1,32*t5+31);t6++) {
             for (t7=32*t4;t7<=min(_PB_NP-1,32*t4+31);t7++) {
-              S[t7][t6] = A[t1][t2][t6] * C4[t6][t7];;
+              S[t6][t7] = A[t1][t2][t6] * C4[t6][t7];;
             }
           }
         }
@@ -108,9 +108,9 @@ if ((_PB_NP >= 1) && (_PB_NQ >= 1) && (_PB_NR >= 1)) {
       }
       for (t4=0;t4<=floord(_PB_NP-1,32);t4++) {
         for (t5=0;t5<=floord(_PB_NP-1,32);t5++) {
-          for (t6=32*t4;t6<=min(_PB_NP-1,32*t4+31);t6++) {
-            for (t7=32*t5;t7<=min(_PB_NP-1,32*t5+31);t7++) {
-              sum[t6] += S[t6][t7];;
+          for (t6=32*t5;t6<=min(_PB_NP-1,32*t5+31);t6++) {
+            for (t7=32*t4;t7<=min(_PB_NP-1,32*t4+31);t7++) {
+              sum[t7] += S[t6][t7];;
             }
           }
         }

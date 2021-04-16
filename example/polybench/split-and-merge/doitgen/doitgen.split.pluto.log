@@ -107,8 +107,8 @@ WRITE
 3 12 3 4 0 3
 # e/i| Arr  [1]  [2]|  r    q    p    s |_PB. _PB. _PB.|  1  
    0   -1    0    0    0    0    0    0    0    0    0   10    ## Arr == S
-   0    0   -1    0    0    0    1    0    0    0    0    0    ## [1] == p
-   0    0    0   -1    0    0    0    1    0    0    0    0    ## [2] == s
+   0    0   -1    0    0    0    0    1    0    0    0    0    ## [1] == s
+   0    0    0   -1    0    0    1    0    0    0    0    0    ## [2] == p
 
 READ
 4 13 4 4 0 3
@@ -134,7 +134,7 @@ READ
 # List of original iterators
 r q p s
 # Statement body expression
-S[p][s] = A[r][q][s] * C4[s][p];
+S[s][p] = A[r][q][s] * C4[s][p];
 </body>
 
 # =============================================== Statement 3
@@ -188,8 +188,8 @@ READ
 3 12 3 4 0 3
 # e/i| Arr  [1]  [2]|  r    q    p    s |_PB. _PB. _PB.|  1  
    0   -1    0    0    0    0    0    0    0    0    0   10    ## Arr == S
-   0    0   -1    0    0    0    1    0    0    0    0    0    ## [1] == p
-   0    0    0   -1    0    0    0    1    0    0    0    0    ## [2] == s
+   0    0   -1    0    0    0    0    1    0    0    0    0    ## [1] == s
+   0    0    0   -1    0    0    1    0    0    0    0    0    ## [2] == p
 
 # ----------------------------------------------  3.4 Statement Extensions
 # Number of Statement Extensions
@@ -200,7 +200,7 @@ READ
 # List of original iterators
 r q p s
 # Statement body expression
-sum[p] += S[p][s];
+sum[p] += S[s][p];
 </body>
 
 # =============================================== Statement 4
@@ -324,7 +324,7 @@ Original loop: 0 -> yes
 Original loop: 1 -> yes
 Original loop: 2 -> yes
 
-S2 "S[p][s] = A[r][q][s] * C4[s][p];"
+S2 "S[s][p] = A[r][q][s] * C4[s][p];"
 ndims: 4; orig_depth: 4
 Index set
 Set #1
@@ -348,13 +348,13 @@ Read accesses
 A[r][q][s]
 C4[s][p]
 Write accesses
-S[p][s]
+S[s][p]
 Original loop: 0 -> yes
 Original loop: 1 -> yes
 Original loop: 2 -> yes
 Original loop: 3 -> yes
 
-S3 "sum[p] += S[p][s];"
+S3 "sum[p] += S[s][p];"
 ndims: 4; orig_depth: 4
 Index set
 Set #1
@@ -376,7 +376,7 @@ loop types (loop, loop, loop, loop, loop, loop, loop, loop, loop)
 
 Read accesses
 sum[p]
-S[p][s]
+S[s][p]
 Write accesses
 sum[p]
 Original loop: 0 -> yes
@@ -3357,16 +3357,17 @@ T(S4): (r, q, 3, p/32, p, 0, 0)
 loop types (loop, loop, scalar, loop, loop, scalar, scalar)
 
 Getting loop at depth  5
-[pluto-intra-tile-opt] Score for loop 0: -12
-[pluto-intra-tile-opt] Score for loop 1: -10
+[pluto-intra-tile-opt] Score for loop 0: -30
+[pluto-intra-tile-opt] Score for loop 1: 16
 [pluto] intra_tile_opt: loop to be made innermost: Getting loop at depth  5
-[pluto-intra-tile-opt] Scot7 {loop with stmts: S3, }
+[pluto-intra-tile-opt] Scort7 {loop with stmts: S3, }
+t6 {loop with stmts: S3, }
 t6 {loop with stmts: S3, }
 t5 {loop with stmts: S1, }
 t5 {loop with stmts: S4, }
-re for loop 0: 10
-[pluto-intra-tile-opt] Score for loop 1: -12
-Getting loop at depth  4
+e for loop 0: -8
+[pluto-intra-tile-opt] Score for loop 1: 14
+[pluto] intra_tile_opt: loop to be made innermost: Getting loop at depth  4
 [pluto-intra-tile-opt] Score for loop 0: 10
 Getting loop at depth  4
 [pluto-intra-tile-opt] Score for loop 0: 12
@@ -3417,12 +3418,12 @@ Getting loop at depth  4
 [pluto] dep_satisfaction_update (level 4)
 	 0 dep(s) satisfied
 [pluto] dep_satisfaction_update (level 5)
-	 0 dep(s) satisfied
-[pluto] dep_satisfaction_update (level 6)
 [pluto] dep_satisfaction_update: dep 8 satisfied
 [pluto] dep_satisfaction_update: dep 21 satisfied
 [pluto] dep_satisfaction_update: dep 28 satisfied
 	 3 dep(s) satisfied
+[pluto] dep_satisfaction_update (level 6)
+	 0 dep(s) satisfied
 [Pluto] After intra-tile optimize
 T(S1): (r, q, 1, p/32, p, 0, 0)
 loop types (loop, loop, scalar, loop, loop, scalar, scalar)
@@ -3430,7 +3431,7 @@ loop types (loop, loop, scalar, loop, loop, scalar, scalar)
 T(S2): (r, q, 0, p/32, s/32, s, p)
 loop types (loop, loop, scalar, loop, loop, loop, loop)
 
-T(S3): (r, q, 2, p/32, s/32, p, s)
+T(S3): (r, q, 2, p/32, s/32, s, p)
 loop types (loop, loop, scalar, loop, loop, loop, loop)
 
 T(S4): (r, q, 3, p/32, p, 0, 0)
@@ -3443,10 +3444,10 @@ loop types (loop, loop, scalar, loop, loop, scalar, scalar)
 [Pluto] Output written to doitgen.split.pluto.c
 
 [pluto] Timing statistics
-[pluto] SCoP extraction + dependence analysis time: 0.001649s
-[pluto] Auto-transformation time: 0.085068s
-[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.006720s
-[pluto] Code generation time: 0.028802s
-[pluto] Other/Misc time: 0.334326s
-[pluto] Total time: 0.449845s
-[pluto] All times: 0.001649 0.085068 0.028802 0.334326
+[pluto] SCoP extraction + dependence analysis time: 0.002197s
+[pluto] Auto-transformation time: 0.084462s
+[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.006715s
+[pluto] Code generation time: 0.028647s
+[pluto] Other/Misc time: 0.323241s
+[pluto] Total time: 0.438547s
+[pluto] All times: 0.002197 0.084462 0.028647 0.323241

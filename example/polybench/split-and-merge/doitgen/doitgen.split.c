@@ -87,8 +87,8 @@ void kernel_doitgen(int nr, int nq, int np,
       for (p = 0; p < _PB_NP; p++)  {
 	sum[p] = SCALAR_VAL(0.0);
 	for (s = 0; s < _PB_NP; s++) {
-	  S[p][s] = A[r][q][s] * C4[s][p];
-	  sum[p] += S[p][s];
+	  S[s][p] = A[r][q][s] * C4[s][p];
+	  sum[p] += S[s][p];
 	}
       }
       for (p = 0; p < _PB_NP; p++)
