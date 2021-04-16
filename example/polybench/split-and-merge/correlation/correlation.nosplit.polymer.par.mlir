@@ -113,8 +113,8 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
             %11 = affine.load %4[%arg5] : memref<2600xf64>
             %12 = affine.load %1[%arg4, %arg5] : memref<3000x2600xf64>
             %13 = affine.load %3[%arg5] : memref<2600xf64>
-            %14 = subf %12, %13 {scop.splittable = 1 : index} : f64
-            %15 = mulf %14, %14 {scop.splittable = 0 : index} : f64
+            %14 = subf %12, %13 : f64
+            %15 = mulf %14, %14 : f64
             %16 = addf %11, %15 : f64
             affine.store %16, %4[%arg5] : memref<2600xf64>
           }
@@ -124,9 +124,9 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.for %arg2 = 0 to 82 {
       affine.for %arg3 = #map1(%arg2) to min #map4(%arg2) {
         %11 = affine.load %4[%arg3] : memref<2600xf64>
-        %12 = divf %11, %7 {scop.splittable = 4 : index} : f64
-        %13 = math.sqrt %12 {scop.splittable = 3 : index} : f64
-        %14 = cmpf ule, %13, %cst_0 {scop.splittable = 2 : index} : f64
+        %12 = divf %11, %7 : f64
+        %13 = math.sqrt %12 : f64
+        %14 = cmpf ule, %13, %cst_0 : f64
         %15 = select %14, %cst_1, %13 : f64
         affine.store %15, %4[%arg3] : memref<2600xf64>
       }
@@ -137,10 +137,10 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
           affine.for %arg5 = #map1(%arg3) to min #map4(%arg3) {
             %11 = affine.load %1[%arg4, %arg5] : memref<3000x2600xf64>
             %12 = affine.load %3[%arg5] : memref<2600xf64>
-            %13 = subf %11, %12 {scop.splittable = 5 : index} : f64
-            %14 = math.sqrt %7 {scop.splittable = 7 : index} : f64
+            %13 = subf %11, %12 : f64
+            %14 = math.sqrt %7 : f64
             %15 = affine.load %4[%arg5] : memref<2600xf64>
-            %16 = mulf %14, %15 {scop.splittable = 6 : index} : f64
+            %16 = mulf %14, %15 : f64
             %17 = divf %13, %16 : f64
             affine.store %17, %1[%arg4, %arg5] : memref<3000x2600xf64>
           }
@@ -156,7 +156,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
                 %11 = affine.load %2[%arg5, %arg7] : memref<2600x2600xf64>
                 %12 = affine.load %1[%arg6, %arg5] : memref<3000x2600xf64>
                 %13 = affine.load %1[%arg6, %arg7] : memref<3000x2600xf64>
-                %14 = mulf %12, %13 {scop.splittable = 8 : index} : f64
+                %14 = mulf %12, %13 : f64
                 %15 = addf %11, %14 : f64
                 affine.store %15, %2[%arg5, %arg7] : memref<2600x2600xf64>
               }
@@ -229,8 +229,8 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %0 = affine.load %arg0[symbol(%arg1)] : memref<?xf64>
     %1 = affine.load %arg3[symbol(%arg4), symbol(%arg1)] : memref<?x2600xf64>
     %2 = affine.load %arg2[symbol(%arg1)] : memref<?xf64>
-    %3 = subf %1, %2 {scop.splittable = 1 : index} : f64
-    %4 = mulf %3, %3 {scop.splittable = 0 : index} : f64
+    %3 = subf %1, %2 : f64
+    %4 = mulf %3, %3 : f64
     %5 = addf %0, %4 : f64
     affine.store %5, %arg0[symbol(%arg1)] : memref<?xf64>
     return
@@ -239,9 +239,9 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %cst = constant 1.000000e-01 : f64
     %cst_0 = constant 1.000000e+00 : f64
     %0 = affine.load %arg0[symbol(%arg1)] : memref<?xf64>
-    %1 = divf %0, %arg2 {scop.splittable = 4 : index} : f64
-    %2 = math.sqrt %1 {scop.splittable = 3 : index} : f64
-    %3 = cmpf ule, %2, %cst {scop.splittable = 2 : index} : f64
+    %1 = divf %0, %arg2 : f64
+    %2 = math.sqrt %1 : f64
+    %3 = cmpf ule, %2, %cst : f64
     %4 = select %3, %cst_0, %2 : f64
     affine.store %4, %arg0[symbol(%arg1)] : memref<?xf64>
     return
@@ -249,10 +249,10 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
   func private @S6(%arg0: memref<?x2600xf64>, %arg1: index, %arg2: index, %arg3: memref<?xf64>, %arg4: f64, %arg5: memref<?xf64>) attributes {scop.stmt} {
     %0 = affine.load %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2600xf64>
     %1 = affine.load %arg5[symbol(%arg2)] : memref<?xf64>
-    %2 = subf %0, %1 {scop.splittable = 5 : index} : f64
-    %3 = math.sqrt %arg4 {scop.splittable = 7 : index} : f64
+    %2 = subf %0, %1 : f64
+    %3 = math.sqrt %arg4 : f64
     %4 = affine.load %arg3[symbol(%arg2)] : memref<?xf64>
-    %5 = mulf %3, %4 {scop.splittable = 6 : index} : f64
+    %5 = mulf %3, %4 : f64
     %6 = divf %2, %5 : f64
     affine.store %6, %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2600xf64>
     return
@@ -271,7 +271,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %0 = affine.load %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2600xf64>
     %1 = affine.load %arg3[symbol(%arg4), symbol(%arg1)] : memref<?x2600xf64>
     %2 = affine.load %arg3[symbol(%arg4), symbol(%arg2)] : memref<?x2600xf64>
-    %3 = mulf %1, %2 {scop.splittable = 8 : index} : f64
+    %3 = mulf %1, %2 : f64
     %4 = addf %0, %3 : f64
     affine.store %4, %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2600xf64>
     return

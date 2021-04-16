@@ -109,7 +109,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
                 %10 = affine.load %2[%arg5, %arg7] : memref<2600x2600xf64>
                 %11 = affine.load %1[%arg6, %arg5] : memref<3000x2600xf64>
                 %12 = affine.load %1[%arg6, %arg7] : memref<3000x2600xf64>
-                %13 = mulf %11, %12 {scop.splittable = 0 : index} : f64
+                %13 = mulf %11, %12 : f64
                 %14 = addf %10, %13 : f64
                 affine.store %14, %2[%arg5, %arg7] : memref<2600x2600xf64>
               }
@@ -192,7 +192,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %0 = affine.load %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2600xf64>
     %1 = affine.load %arg3[symbol(%arg4), symbol(%arg1)] : memref<?x2600xf64>
     %2 = affine.load %arg3[symbol(%arg4), symbol(%arg2)] : memref<?x2600xf64>
-    %3 = mulf %1, %2 {scop.splittable = 0 : index} : f64
+    %3 = mulf %1, %2 : f64
     %4 = addf %0, %3 : f64
     affine.store %4, %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2600xf64>
     return
