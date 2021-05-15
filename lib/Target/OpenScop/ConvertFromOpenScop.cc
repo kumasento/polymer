@@ -148,9 +148,6 @@ AffineExprBuilder::process(clast_expr *expr,
     if (failed(process(reinterpret_cast<clast_reduction *>(expr), affExprs)))
       return failure();
     break;
-  default:
-    assert(false && "Unrecognized clast_expr_type.\n");
-    return failure();
   }
   return success();
 }
@@ -245,9 +242,6 @@ AffineExprBuilder::process(clast_binary *expr,
   case clast_bin_mod:
     affExpr = lhsAffExprs[0] % rhsAffExpr;
     break;
-  default:
-    assert(false && "Unrecognized clast_binary type.\n");
-    return failure();
   }
 
   affExprs.push_back(affExpr);
@@ -274,10 +268,6 @@ AffineExprBuilder::process(clast_reduction *expr,
     if (failed(processMinOrMaxReduction(expr, affExprs)))
       return failure();
     break;
-  default:
-    llvm::errs() << "Clast expr type: " << expr->type
-                 << " is not yet supported\n";
-    return failure();
   }
 
   return success();
@@ -1142,7 +1132,7 @@ LogicalResult Importer::processStmt(clast_guard *guardStmt) {
 
   Block *entryBlock = ifOp.getThenBlock();
   b.setInsertionPointToStart(entryBlock);
-  processStmtList(guardStmt->then);
+  assert(processStmtList(guardStmt->then).succeeded());
   b.setInsertionPointAfter(ifOp);
 
   return success();
@@ -1246,7 +1236,7 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   // Create the loop body
   b.setInsertionPointToStart(&entryBlock);
   entryBlock.walk([&](mlir::AffineYieldOp op) { b.setInsertionPoint(op); });
-  processStmtList(forStmt->body);
+  assert(processStmtList(forStmt->body).succeeded());
   b.setInsertionPointAfter(forOp);
 
   // Restore the symbol value.
