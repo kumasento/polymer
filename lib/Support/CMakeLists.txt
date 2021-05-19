@@ -20,7 +20,6 @@ add_mlir_library(PolymerSupport
 
   # libosl
   # libcloog
-  # libisl
   libplutoisl
   libplutoosl
   libplutopip

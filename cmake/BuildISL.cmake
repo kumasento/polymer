@@ -32,11 +32,12 @@ ExternalProject_Add(
   BUILD_COMMAND make -j 4
   INSTALL_COMMAND make install
   BUILD_IN_SOURCE 1
+  BUILD_BYPRODUCTS "${ISL_LIB_DIR}/libisl.so" "${ISL_LIB_DIR}/libisl.a"
 )
 
-add_library(libisl STATIC IMPORTED)
+add_library(libisl SHARED IMPORTED)
 set_target_properties(libisl PROPERTIES
-  IMPORTED_LOCATION "${ISL_LIB_DIR}/libisl.a"
+  IMPORTED_LOCATION "${ISL_LIB_DIR}/libisl.so"
   INTERFACE_INCLUDE_DIRECTORIES "${ISL_BINARY_DIR}/include")
-
+add_dependencies(libisl isl)
 

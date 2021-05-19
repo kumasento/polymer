@@ -90,8 +90,8 @@ ExternalProject_Add(
   BUILD_IN_SOURCE 1
   BUILD_BYPRODUCTS 
    "${PLUTO_LIB_DIR}/libpluto.so"
-   "${PLUTO_LIB_DIR}/libisl.so"
    "${PLUTO_LIB_DIR}/libosl.so"
+   "${PLUTO_LIB_DIR}/libisl.so"
    "${PLUTO_LIB_DIR}/libcloog-isl.so"
    "${PLUTO_LIB_DIR}/libpiplib_dp.so"
    "${PLUTO_LIB_DIR}/libpolylib64.so"
@@ -100,10 +100,10 @@ ExternalProject_Add(
 
 add_library(libpluto SHARED IMPORTED)
 set_target_properties(libpluto PROPERTIES IMPORTED_LOCATION "${PLUTO_LIB_DIR}/libpluto.so")
-add_library(libplutoosl SHARED IMPORTED)
-set_target_properties(libplutoosl PROPERTIES IMPORTED_LOCATION "${PLUTO_LIB_DIR}/libosl.so")
 add_library(libplutoisl SHARED IMPORTED)
 set_target_properties(libplutoisl PROPERTIES IMPORTED_LOCATION "${PLUTO_LIB_DIR}/libisl.so")
+add_library(libplutoosl SHARED IMPORTED)
+set_target_properties(libplutoosl PROPERTIES IMPORTED_LOCATION "${PLUTO_LIB_DIR}/libosl.so")
 add_library(libplutopip SHARED IMPORTED)
 set_target_properties(libplutopip PROPERTIES IMPORTED_LOCATION "${PLUTO_LIB_DIR}/libpiplib_dp.so")
 add_library(libplutopolylib SHARED IMPORTED)
