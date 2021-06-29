@@ -23,7 +23,7 @@ Polymer is a essential component to the following two papers:
 
 Polymer appears in the following talks:
 
-* MLIR Open Dsign Meeting (11/02/2021) on Polygeist. [[slides](https://drive.google.com/file/d/1YJhPBpW77WX53Rxxt2TLbEhdbrOFwDy4/viewl)] [[recording](https://drive.google.com/file/d/1P14UrXMlR6WbHR_YrSJVsb7h3cLdr5-h/view?usp=sharing)]
+* MLIR Open Dsign Meeting (11/02/2021) on Polygeist. [[slides](https://drive.google.com/file/d/1YJhPBpW77WX53Rxxt2TLbEhdbrOFwDy4/view?usp=sharing)] [[recording](https://drive.google.com/file/d/1P14UrXMlR6WbHR_YrSJVsb7h3cLdr5-h/view?usp=sharing)]
 * [LATTE '21](https://capra.cs.cornell.edu/latte21/) on Phism. [[recording](https://youtu.be/50UjVlDF1Us)]
 
 
