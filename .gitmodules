@@ -6,4 +6,4 @@
 	url =  https://github.com/kumasento/pluto
 [submodule "example/polybench-golden"]
 	path = example/polybench-golden
-	url = git@github.com:MatthiasJReisinger/PolyBenchC-4.2.1.git
+	url = https://github.com/MatthiasJReisinger/PolyBenchC-4.2.1.git
