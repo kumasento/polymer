@@ -214,11 +214,7 @@ static void scopStmtSplit(ModuleOp m, OpBuilder &b, FuncOp f, mlir::CallOp call,
   b.setInsertionPointAfterValue(findLastDefined(ValueRange(memSizes)));
   // Allocation of the scratchpad memory.
   Operation *scrAlloc =
-<<<<<<< HEAD
-      b.create<memref::AllocaOp>(forOp.getLoc(), memType, memSize);
-=======
       b.create<memref::AllocaOp>(forOp.getLoc(), memType, memSizes);
->>>>>>> 187abcfc41da8d091438f7207ea339e2999b9115
   scrAlloc->setAttr("scop.scratchpad", b.getUnitAttr());
 
   // Pass it into the target function.
