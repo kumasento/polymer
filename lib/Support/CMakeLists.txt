@@ -23,3 +23,4 @@ add_mlir_library(PolymerSupport
   libplutocandl
   libpluto
 )
+target_link_libraries(PolymerSupport PUBLIC ${GMP_LIBRARY})

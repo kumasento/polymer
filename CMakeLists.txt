@@ -41,8 +41,6 @@ set(LLVM_LIT_ARGS "${LIT_ARGS_DEFAULT}" CACHE STRING "Default options for lit")
 # ------------------------------------------------- Dependencies
 # Find whether the GMP package exists.
 find_package(GMP REQUIRED)
-# TODO: there could be a better way to do this?
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lgmp" )
 
 # Configure and build OpenScop to ${CMAKE_BUILD_DIR}/openscop 
 # include("${CMAKE_SOURCE_DIR}/cmake/OpenScop.cmake")
