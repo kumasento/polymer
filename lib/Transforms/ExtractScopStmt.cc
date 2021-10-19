@@ -44,16 +44,10 @@ using CalleeToCallersMap =
 /// TODO: support CallOp.
 static void discoverMemWriteOps(mlir::FuncOp f,
                                 SmallVectorImpl<Operation *> &ops) {
-  bool hasAffineScope = false;
   f.getOperation()->walk([&](Operation *op) {
-    if (isa<mlir::AffineForOp>(op))
-      hasAffineScope = true;
-    if (isa<mlir::AffineWriteOpInterface, memref::StoreOp>(op))
+    if (isa<mlir::AffineWriteOpInterface>(op))
       ops.push_back(op);
   });
-
-  if (!hasAffineScope)
-    ops.clear();
 }
 
 /// Returns the newly created scratchpad.
@@ -384,6 +378,12 @@ static unsigned extractScopStmt(mlir::FuncOp f, unsigned numCallees,
   // statement in the given function.
   SmallVector<Operation *, 8> writeOps;
   discoverMemWriteOps(f, writeOps);
+
+  LLVM_DEBUG({
+    dbgs() << "Discovered memref write ops:\n";
+    for (Operation *op : writeOps)
+      op->dump();
+  });
 
   llvm::SetVector<Operation *> opsToRemove;
   // Map from an op in the original funcOp to which callee it would belong to.
