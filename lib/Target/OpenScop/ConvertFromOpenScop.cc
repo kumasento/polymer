@@ -28,6 +28,7 @@ extern "C" {
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Affine/Utils.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -606,8 +607,8 @@ void Importer::initializeFuncOpInterface() {
     // If the source type is not index, cast it to index then.
     if (scop->isParameterSymbol(argSymbol) &&
         arg.getType() != b.getIndexType()) {
-      mlir::Operation *op = b.create<mlir::IndexCastOp>(sourceFuncOp.getLoc(),
-                                                        arg, b.getIndexType());
+      mlir::Operation *op = b.create<mlir::arith::IndexCastOp>(
+          sourceFuncOp.getLoc(), arg, b.getIndexType());
       symbolTable[argSymbol] = op->getResult(0);
     } else {
       symbolTable[argSymbol] = arg;
@@ -687,7 +688,7 @@ void Importer::initializeSymbol(mlir::Value val) {
     std::string operandSymbol = oslValueTable->lookup(operand);
     if (operandSymbol.empty()) {
       mlir::Operation *operandDefOp = operand.getDefiningOp();
-      if (operandDefOp && isa<mlir::ConstantOp>(operandDefOp)) {
+      if (operandDefOp && isa<mlir::arith::ConstantOp>(operandDefOp)) {
         newOperands.push_back(b.clone(*operandDefOp)->getResult(0));
         continue;
       }
@@ -732,8 +733,8 @@ void Importer::initializeSymbolTable() {
 
   /// Constants
   symbolTable["zero"] =
-      b.create<mlir::ConstantOp>(b.getUnknownLoc(), b.getIndexType(),
-                                 b.getIntegerAttr(b.getIndexType(), 0));
+      b.create<mlir::arith::ConstantOp>(b.getUnknownLoc(), b.getIndexType(),
+                                        b.getIntegerAttr(b.getIndexType(), 0));
 
   for (const auto &it : *oslSymbolTable)
     initializeSymbol(it.second);
@@ -907,7 +908,7 @@ void Importer::getInductionVars(clast_user_stmt *userStmt, osl_body_p body,
 
       mlir::Operation *op;
       if (substMap.isSingleConstant())
-        op = b.create<mlir::ConstantOp>(
+        op = b.create<mlir::arith::ConstantOp>(
             b.getUnknownLoc(), b.getIndexType(),
             b.getIntegerAttr(b.getIndexType(),
                              substMap.getSingleConstantResult()));
@@ -932,7 +933,7 @@ static mlir::Value findBlockArg(mlir::Value v) {
     mlir::Operation *defOp = r.getDefiningOp();
     if (!defOp || defOp->getNumOperands() != 1)
       return nullptr;
-    if (!isa<mlir::IndexCastOp>(defOp))
+    if (!isa<mlir::arith::IndexCastOp>(defOp))
       return nullptr;
 
     r = defOp->getOperand(0);
@@ -1003,7 +1004,7 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
         if (arg.getType() != val.getType()) {
           OpBuilder::InsertionGuard guard(b);
           b.setInsertionPointAfterValue(val);
-          mlir::Operation *castOp = b.create<mlir::IndexCastOp>(
+          mlir::Operation *castOp = b.create<mlir::arith::IndexCastOp>(
               b.getUnknownLoc(), val, arg.getType());
           callerArgs.push_back(castOp->getResult(0));
         } else {
@@ -1338,7 +1339,7 @@ LogicalResult Importer::processStmt(clast_assignment *ass) {
 
   mlir::Operation *op;
   if (substMap.isSingleConstant()) {
-    op = b.create<mlir::ConstantOp>(
+    op = b.create<mlir::arith::ConstantOp>(
         b.getUnknownLoc(), b.getIndexType(),
         b.getIntegerAttr(b.getIndexType(), substMap.getSingleConstantResult()));
   } else if (substMap.getNumResults() == 1) {
