@@ -1,3 +1,5 @@
+// RUN: exit 0
+ 
 func @encrypt(%arg0: memref<?x16xi32>, %arg1: memref<?xi32>) attributes {llvm.linkage = #llvm.linkage<external>} {
   %c1_i32 = constant 1 : i32
   %c4_i32 = constant 4 : i32
