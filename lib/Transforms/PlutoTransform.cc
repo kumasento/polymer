@@ -132,6 +132,28 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
   return g;
 }
 
+static void dedupIndexCast(FuncOp f) {
+  Block &entry = f.getBlocks().front();
+  llvm::MapVector<Value, Value> argToCast;
+  SmallVector<Operation *> toErase;
+  for (auto &op : entry) {
+    if (auto indexCast = dyn_cast<arith::IndexCastOp>(&op)) {
+      auto arg = indexCast.getOperand().dyn_cast<BlockArgument>();
+      if (argToCast.count(arg)) {
+        LLVM_DEBUG(dbgs() << "Found duplicated index_cast: " << indexCast
+                          << '\n');
+        indexCast.replaceAllUsesWith(argToCast.lookup(arg));
+        toErase.push_back(indexCast);
+      } else {
+        argToCast[arg] = indexCast;
+      }
+    }
+  }
+
+  for (auto op : toErase)
+    op->erase();
+}
+
 namespace {
 class PlutoTransformPass
     : public mlir::PassWrapper<PlutoTransformPass,
