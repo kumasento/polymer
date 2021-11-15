@@ -278,6 +278,9 @@ struct PlutoParallelizePass
 } // namespace
 
 static void dedupIndexCast(FuncOp f) {
+  if (f.getBlocks().empty())
+    return;
+
   Block &entry = f.getBlocks().front();
   llvm::MapVector<Value, Value> argToCast;
   SmallVector<Operation *> toErase;
