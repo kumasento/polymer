@@ -73,7 +73,7 @@ The following command will optimize this code piece.
 
 ```shell
 # Go to the build/ directory.
-./bin/polymer-opt -pluto-opt matmul.mlir 
+./bin/polymer-opt -reg2mem -extract-scop-stmt -pluto-opt matmul.mlir 
 ```
 
 Output:
