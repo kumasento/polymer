@@ -12,20 +12,20 @@
 #include "polymer/Target/OpenScop.h"
 #include "polymer/Transforms/ExtractScopStmt.h"
 
-#include "mlir/Analysis/AffineAnalysis.h"
-#include "mlir/Analysis/AffineStructures.h"
-#include "mlir/Analysis/LoopAnalysis.h"
-#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
+#include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Affine/LoopUtils.h"
+#include "mlir/Dialect/Affine/Utils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
-#include "mlir/Transforms/LoopUtils.h"
-#include "mlir/Transforms/Utils.h"
 #include "mlir/Translation.h"
 
 #include "llvm/ADT/DenseMap.h"
@@ -179,7 +179,7 @@ void OslScopBuilder::buildScopStmtMap(mlir::FuncOp f,
   mlir::ModuleOp m = cast<mlir::ModuleOp>(f->getParentOp());
 
   f.walk([&](mlir::Operation *op) {
-    if (mlir::CallOp caller = dyn_cast<mlir::CallOp>(op)) {
+    if (mlir::func::CallOp caller = dyn_cast<mlir::func::CallOp>(op)) {
       std::string calleeName(caller.getCallee());
       mlir::FuncOp callee = m.lookupSymbol<mlir::FuncOp>(calleeName);
 
