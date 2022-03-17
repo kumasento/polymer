@@ -21,25 +21,23 @@ extern "C" {
 #include "polymer/Support/Utils.h"
 #include "polymer/Target/OpenScop.h"
 
-#include "mlir/Analysis/AffineAnalysis.h"
-#include "mlir/Analysis/AffineStructures.h"
-#include "mlir/Analysis/LoopAnalysis.h"
-#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
+#include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
+#include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/Transforms/LoopUtils.h"
-#include "mlir/Transforms/Utils.h"
 #include "mlir/Translation.h"
 
 #include "llvm/Support/Error.h"
@@ -597,7 +595,7 @@ void Importer::initializeFuncOpInterface() {
   // Initialize the symbol table for these entryBlock arguments
   auto &entryBlock = *func.addEntryBlock();
   b.setInsertionPointToStart(&entryBlock);
-  b.create<mlir::ReturnOp>(UnknownLoc::get(context));
+  b.create<mlir::func::ReturnOp>(UnknownLoc::get(context));
 
   b.setInsertionPointToStart(&entryBlock);
   for (unsigned i = 0; i < entryBlock.getNumArguments(); i++) {
@@ -608,7 +606,7 @@ void Importer::initializeFuncOpInterface() {
     if (scop->isParameterSymbol(argSymbol) &&
         arg.getType() != b.getIndexType()) {
       mlir::Operation *op = b.create<mlir::arith::IndexCastOp>(
-          sourceFuncOp.getLoc(), arg, b.getIndexType());
+          sourceFuncOp.getLoc(), b.getIndexType(), arg);
       symbolTable[argSymbol] = op->getResult(0);
     } else {
       symbolTable[argSymbol] = arg;
@@ -819,7 +817,7 @@ void Importer::createCalleeAndCallerArgs(
       // TODO: refactorize these two lines into a single API.
       Value memref = symTable->getValue(args[i]);
       if (!memref) {
-        memref = entryBlock.addArgument(memType);
+        memref = entryBlock.addArgument(memType, b.getUnknownLoc());
         symTable->setValue(args[i], memref, OslSymbolTable::Memref);
       }
       callerArgs.push_back(memref);
@@ -989,7 +987,7 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
 
     assert(callee.getName() == calleeName && "Callee names should match.");
     // Note that caller is in the original function.
-    mlir::CallOp origCaller = it->second.getCaller();
+    mlir::func::CallOp origCaller = it->second.getCaller();
     loc = origCaller.getLoc();
     unsigned currInductionVar = 0;
 
@@ -1007,7 +1005,7 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
           OpBuilder::InsertionGuard guard(b);
           b.setInsertionPointAfterValue(val);
           mlir::Operation *castOp = b.create<mlir::arith::IndexCastOp>(
-              b.getUnknownLoc(), val, arg.getType());
+              b.getUnknownLoc(), arg.getType(), val);
           callerArgs.push_back(castOp->getResult(0));
         } else {
           callerArgs.push_back(val);
@@ -1064,7 +1062,7 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
   }
 
   // Finally create the CallOp.
-  b.create<mlir::CallOp>(loc, callee, callerArgs);
+  b.create<mlir::func::CallOp>(loc, callee, callerArgs);
 
   return success();
 }
@@ -1316,11 +1314,12 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   vMap.map(args, func.getArguments());
   b.setInsertionPointToStart(newEntry);
   b.clone(*forOp.getOperation(), vMap);
-  b.create<mlir::ReturnOp>(func.getLoc(), llvm::None);
+  b.create<mlir::func::ReturnOp>(func.getLoc(), llvm::None);
 
   // Create function call.
   b.setInsertionPointAfter(forOp);
-  b.create<mlir::CallOp>(forOp.getLoc(), func, ValueRange(args.getArrayRef()));
+  b.create<mlir::func::CallOp>(forOp.getLoc(), func,
+                               ValueRange(args.getArrayRef()));
 
   // Clean up
   forOp.erase();
@@ -1538,11 +1537,11 @@ mlir::Operation *polymer::createFuncOpFromOpenScop(
   return deserializer.getFunc();
 }
 
-OwningModuleRef
+OwningOpRef<ModuleOp>
 polymer::translateOpenScopToModule(std::unique_ptr<OslScop> scop,
                                    MLIRContext *context) {
   context->loadDialect<AffineDialect>();
-  OwningModuleRef module(ModuleOp::create(
+  OwningOpRef<ModuleOp> module(ModuleOp::create(
       FileLineColLoc::get(context, "", /*line=*/0, /*column=*/0)));
 
   OslSymbolTable symTable;
@@ -1553,8 +1552,8 @@ polymer::translateOpenScopToModule(std::unique_ptr<OslScop> scop,
   return module;
 }
 
-static OwningModuleRef translateOpenScopToModule(llvm::SourceMgr &sourceMgr,
-                                                 MLIRContext *context) {
+static OwningOpRef<ModuleOp>
+translateOpenScopToModule(llvm::SourceMgr &sourceMgr, MLIRContext *context) {
   llvm::SMDiagnostic err;
   std::unique_ptr<OslScop> scop =
       readOpenScop(*sourceMgr.getMemoryBuffer(sourceMgr.getMainFileID()));
