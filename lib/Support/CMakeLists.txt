@@ -7,6 +7,8 @@ add_mlir_library(PolymerSupport
   Utils.cc
 
   DEPENDS
+  pluto
+  isl
   mlir-headers
 
   ADDITIONAL_HEADERS
@@ -18,7 +20,6 @@ add_mlir_library(PolymerSupport
 
   # libosl
   # libcloog
-  # libisl
   libplutoisl
   libplutoosl
   libplutopip

@@ -2,9 +2,12 @@
 
 include(ExternalProject)
 
+if (NOT PLUTO_SOURCE_DIR)
+  message(FATAL_ERROR "Should set PLUTO_SOURCE_DIR.")
+endif()
+
 set(PLUTO_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/pluto/include")
 set(PLUTO_LIB_DIR "${CMAKE_CURRENT_BINARY_DIR}/pluto/lib")
-set(PLUTO_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/pluto")
 set(PLUTO_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/pluto")
 
 set(PLUTO_LIBCLANG_PREFIX "" CACHE STRING
@@ -87,8 +90,8 @@ ExternalProject_Add(
   BUILD_IN_SOURCE 1
   BUILD_BYPRODUCTS 
    "${PLUTO_LIB_DIR}/libpluto.so"
-   "${PLUTO_LIB_DIR}/libisl.so"
    "${PLUTO_LIB_DIR}/libosl.so"
+   "${PLUTO_LIB_DIR}/libisl.so"
    "${PLUTO_LIB_DIR}/libcloog-isl.so"
    "${PLUTO_LIB_DIR}/libpiplib_dp.so"
    "${PLUTO_LIB_DIR}/libpolylib64.so"
@@ -97,10 +100,10 @@ ExternalProject_Add(
 
 add_library(libpluto SHARED IMPORTED)
 set_target_properties(libpluto PROPERTIES IMPORTED_LOCATION "${PLUTO_LIB_DIR}/libpluto.so")
-add_library(libplutoosl SHARED IMPORTED)
-set_target_properties(libplutoosl PROPERTIES IMPORTED_LOCATION "${PLUTO_LIB_DIR}/libosl.so")
 add_library(libplutoisl SHARED IMPORTED)
 set_target_properties(libplutoisl PROPERTIES IMPORTED_LOCATION "${PLUTO_LIB_DIR}/libisl.so")
+add_library(libplutoosl SHARED IMPORTED)
+set_target_properties(libplutoosl PROPERTIES IMPORTED_LOCATION "${PLUTO_LIB_DIR}/libosl.so")
 add_library(libplutopip SHARED IMPORTED)
 set_target_properties(libplutopip PROPERTIES IMPORTED_LOCATION "${PLUTO_LIB_DIR}/libpiplib_dp.so")
 add_library(libplutopolylib SHARED IMPORTED)

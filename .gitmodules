@@ -1,6 +1,9 @@
 [submodule "pluto"]
-	path = pluto
+	path = lib/External/pluto
 	url =  https://github.com/kumasento/pluto
 [submodule "example/polybench-golden"]
 	path = example/polybench-golden
 	url = https://github.com/MatthiasJReisinger/PolyBenchC-4.2.1.git
+[submodule "lib/External/isl"]
+	path = lib/External/isl
+	url = https://repo.or.cz/isl.git
